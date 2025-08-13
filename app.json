@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "sdCart",
+    "slug": "sdCart",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/clogo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "package": "com.srdevaraj.sdCart"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "c91a560a-92ad-4802-896a-a0ef15b4991e"
+      }
+    }
+  }
+}
