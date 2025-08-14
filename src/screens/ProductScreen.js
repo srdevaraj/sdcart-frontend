@@ -3,16 +3,18 @@ import {
   View, Text, FlatList, ActivityIndicator, StyleSheet,
   TouchableOpacity, Image, Modal, Pressable, Alert, Dimensions
 } from 'react-native';
-import { getAllProducts, getProductImageById } from '../services/productService';
+import { getAllProducts } from '../services/productService';
 import { useCart } from '../context/CartContext';
-import clogo from '../../assets/clogo.png'; // App icon
+import clogo from '../../assets/clogo.png';
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - 60) / 2;
 
+// Replace with your actual Cloudinary base URL if needed
+const CLOUDINARY_BASE_URL = 'https://res.cloudinary.com/<your-cloud-name>/image/upload/';
+
 export default function ProductScreen({ navigation, route }) {
   const [products, setProducts] = useState([]);
-  const [imageMap, setImageMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -45,15 +47,16 @@ export default function ProductScreen({ navigation, route }) {
   const fetchProducts = async () => {
     try {
       const data = await getAllProducts();
-      const imgMap = {};
-      await Promise.all(
-        data.map(async (product) => {
-          const base64 = await getProductImageById(product.id);
-          if (base64) imgMap[product.id] = base64;
-        })
-      );
-      setImageMap(imgMap);
-      setProducts(data);
+
+      // Ensure imageUrl is a valid Cloudinary URL
+      const processedData = data.map(item => {
+        if (item.imageUrl && !item.imageUrl.startsWith('http')) {
+          return { ...item, imageUrl: `${CLOUDINARY_BASE_URL}${item.imageUrl}` };
+        }
+        return item;
+      });
+
+      setProducts(processedData);
     } catch (error) {
       Alert.alert("Error", "Failed to fetch products.");
     } finally {
@@ -100,8 +103,8 @@ export default function ProductScreen({ navigation, route }) {
       >
         <Image
           source={
-            imageMap[item.id]
-              ? { uri: `data:image/jpeg;base64,${imageMap[item.id]}` }
+            item.imageUrl
+              ? { uri: item.imageUrl }
               : require('../../assets/loading.gif')
           }
           style={styles.image}

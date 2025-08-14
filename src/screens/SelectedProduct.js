@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, Image, StyleSheet, ActivityIndicator,
-  ScrollView, Alert, TouchableOpacity, FlatList, Dimensions
+  ScrollView, Alert, TouchableOpacity, Dimensions
 } from 'react-native';
-import { getProductById, getProductImageById } from '../services/productService';
+import { getProductById } from '../services/productService';
 import { useCart } from '../context/CartContext';
 
 const screenWidth = Dimensions.get('window').width;
@@ -11,7 +11,6 @@ const screenWidth = Dimensions.get('window').width;
 export default function SelectedProduct({ route }) {
   const { id } = route.params;
   const [product, setProduct] = useState(null);
-  const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
   const { addToCart } = useCart();
@@ -23,9 +22,7 @@ export default function SelectedProduct({ route }) {
   const fetchProductDetails = async () => {
     try {
       const data = await getProductById(id);
-      const imgArray = await getProductImageById(id);
       setProduct(data);
-      setImages(Array.isArray(imgArray) ? imgArray : []);
     } catch (error) {
       Alert.alert("Error", "Failed to load product.");
       console.error("Fetch Product Error:", error);
@@ -57,21 +54,17 @@ export default function SelectedProduct({ route }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <FlatList
-        data={images}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(_, index) => index.toString()}
-        renderItem={({ item }) => (
-          <Image
-            source={{ uri: `data:image/jpeg;base64,${item}` }}
-            style={styles.image}
-            resizeMode="contain"
-          />
-        )}
-        pagingEnabled
-        style={styles.imageList}
-      />
+      {product.imageUrl ? (
+        <Image
+          source={{ uri: product.imageUrl }}
+          style={styles.image}
+          resizeMode="contain"
+        />
+      ) : (
+        <View style={[styles.image, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text>No Image Available</Text>
+        </View>
+      )}
 
       <Text style={styles.name}>{product.name}</Text>
       <Text style={styles.price}>₹{product.price}</Text>
@@ -123,14 +116,11 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     marginTop: 60,
   },
-  imageList: {
-    marginBottom: 20,
-  },
   image: {
     width: screenWidth - 40,
     height: 250,
     borderRadius: 10,
-    marginRight: 10,
+    marginBottom: 20,
     backgroundColor: '#eee',
   },
   name: {
