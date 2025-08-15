@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {jwtDecode} from 'jwt-decode'; // ✅ Correct way to import jwt-decode
+import { jwtDecode } from 'jwt-decode'; // ✅ Correct import
 
 import {
   fetchCartItems,
@@ -15,6 +15,7 @@ export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Validate JWT token
   const getValidToken = async () => {
     try {
       const token = await AsyncStorage.getItem('userToken');
@@ -39,6 +40,7 @@ export const CartProvider = ({ children }) => {
     }
   };
 
+  // Load cart items from API
   const loadCart = async () => {
     setLoading(true);
     try {
@@ -59,6 +61,7 @@ export const CartProvider = ({ children }) => {
     loadCart();
   }, []);
 
+  // Add product to cart
   const addToCart = async (productId) => {
     try {
       const token = await getValidToken();
@@ -75,6 +78,7 @@ export const CartProvider = ({ children }) => {
             )
           : [...prevItems, newItem];
       });
+
       return true;
     } catch (err) {
       console.error('❌ Add to cart failed:', err.message || err);
@@ -82,18 +86,20 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const removeFromCart = async (item) => {
+  // Remove product from cart
+  const removeFromCart = async (cartItemId) => {
     try {
       const token = await getValidToken();
       if (!token) throw new Error('Authentication token not available or expired');
 
-      await removeFromCartAPI(item.id, token);
-      setCartItems((prevItems) => prevItems.filter((i) => i.id !== item.id));
+      await removeFromCartAPI(cartItemId, token);
+      setCartItems((prevItems) => prevItems.filter((i) => i.id !== cartItemId));
     } catch (err) {
       console.error('❌ Remove from cart failed:', err.message || err);
     }
   };
 
+  // Clear entire cart
   const clearCart = async () => {
     try {
       const token = await getValidToken();

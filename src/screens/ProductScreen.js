@@ -1,16 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, ActivityIndicator, StyleSheet,
-  TouchableOpacity, Image, Modal, Pressable, Alert, Dimensions
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Modal,
+  Pressable,
+  Alert,
+  Dimensions,
 } from 'react-native';
 import { getAllProducts } from '../services/productService';
 import { useCart } from '../context/CartContext';
 import clogo from '../../assets/clogo.png';
+import { addToCartAPI } from '../../src/api/cartApi'; // adjust the path if needed
+
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - 60) / 2;
 
-// Replace with your actual Cloudinary base URL if needed
+// Replace with your actual Cloudinary base URL
 const CLOUDINARY_BASE_URL = 'https://res.cloudinary.com/<your-cloud-name>/image/upload/';
 
 export default function ProductScreen({ navigation, route }) {
@@ -49,16 +60,16 @@ export default function ProductScreen({ navigation, route }) {
       const data = await getAllProducts();
 
       // Ensure imageUrl is a valid Cloudinary URL
-      const processedData = data.map(item => {
-        if (item.imageUrl && !item.imageUrl.startsWith('http')) {
-          return { ...item, imageUrl: `${CLOUDINARY_BASE_URL}${item.imageUrl}` };
-        }
-        return item;
-      });
+      const processedData = data.map(item => ({
+        ...item,
+        imageUrl: item.imageUrl && !item.imageUrl.startsWith('http')
+          ? `${CLOUDINARY_BASE_URL}${item.imageUrl}`
+          : item.imageUrl,
+      }));
 
       setProducts(processedData);
     } catch (error) {
-      Alert.alert("Error", "Failed to fetch products.");
+      Alert.alert('Error', 'Failed to fetch products.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -72,20 +83,24 @@ export default function ProductScreen({ navigation, route }) {
 
   const filterByCategory = (category) => {
     setModalVisible(false);
-    navigation.navigate(category);
+    // Navigate if a screen exists or implement filtering logic
+    // navigation.navigate(category);
+    Alert.alert('Filter', `Filter by ${category} not implemented`);
   };
 
-  const handleAddToCart = async (product) => {
-    try {
-      setAddingToCartId(product.id);
-      await addToCart(product);
-      Alert.alert("Success", "Product added to cart.");
-    } catch (error) {
-      Alert.alert("Error", "Failed to add to cart.");
-    } finally {
-      setAddingToCartId(null);
-    }
-  };
+ const handleAddToCart = async (product) => {
+  try {
+    setAddingToCartId(product.id);
+    await addToCartAPI(product.id, 1); // ✅ send only the ID
+    Alert.alert("Success", "Product added to cart.");
+  } catch (error) {
+    console.error("❌ Add to cart failed:", error);
+    Alert.alert("Error", error.message || "Failed to add to cart.");
+  } finally {
+    setAddingToCartId(null);
+  }
+};
+
 
   if (loading && !refreshing) {
     return (
@@ -105,7 +120,7 @@ export default function ProductScreen({ navigation, route }) {
           source={
             item.imageUrl
               ? { uri: item.imageUrl }
-              : require('../../assets/loading.gif')
+              : require('../../assets/clogo.png')
           }
           style={styles.image}
         />
@@ -129,7 +144,6 @@ export default function ProductScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      {/* Category Filter Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -138,7 +152,7 @@ export default function ProductScreen({ navigation, route }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            {['Fruits', 'Mobiles', 'Grocery'].map((category) => (
+            {['Fruits', 'Mobiles', 'Grocery'].map(category => (
               <Pressable
                 key={category}
                 style={styles.categoryButton}
@@ -156,7 +170,7 @@ export default function ProductScreen({ navigation, route }) {
       ) : (
         <FlatList
           data={products}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={item => item.id.toString()}
           renderItem={renderItem}
           numColumns={2}
           columnWrapperStyle={{ justifyContent: 'space-between' }}
