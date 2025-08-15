@@ -1,6 +1,5 @@
-import jwtDecode from 'jwt-decode';
-
-import { StatusBar, SafeAreaView } from 'react-native';
+import React from 'react';
+import { StatusBar, SafeAreaView, View, Image, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,7 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { CartProvider } from './src/context/CartContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 
+// Screens
 import HomeScreen from './src/screens/HomeScreen';
 import ProductScreen from './src/screens/ProductScreen';
 import GetProductById from './src/screens/GetProductByIdScreen';
@@ -23,31 +24,56 @@ import Cart from './src/screens/Cart';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import AccountScreen from './src/screens/AccountScreen';
-
-import { AuthProvider, useAuth } from './src/context/AuthContext';
+import Electricals from './src/screens/Electricals';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Light blue background for headers & tab bar
+const lightBlue = '#b7dafdff';
 
 function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
+        tabBarIcon: ({ color, size, focused }) => {
           let iconName;
-          if (route.name === 'Home') iconName = 'home-outline';
-          else if (route.name === 'Products') iconName = 'pricetags-outline';
-          else if (route.name === 'Search') iconName = 'search-outline';
-          else if (route.name === 'Cart') iconName = 'cart-outline';
-          else if (route.name === 'Account') iconName = 'person-outline';
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Products') {
+            iconName = focused ? 'pricetags' : 'pricetags-outline';
+          } else if (route.name === 'Search') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'Cart') {
+            iconName = focused ? 'cart' : 'cart-outline';
+          } else if (route.name === 'Account') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: 'blue',
-        tabBarInactiveTintColor: 'gray',
+        tabBarActiveTintColor: 'blue', // Active icon color
+        tabBarInactiveTintColor: 'black', // Inactive icon color
         headerShown: true,
+        headerStyle: { backgroundColor: lightBlue },
+        tabBarStyle: { backgroundColor: lightBlue },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          headerTitle: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Image
+                source={require('./assets/clogo.png')}
+                style={{ width: 30, height: 30, marginRight: 8 }}
+                resizeMode="contain"
+              />
+              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>sdCart</Text>
+            </View>
+          ),
+        }}
+      />
       <Tab.Screen
         name="Products"
         component={ProductScreen}
@@ -64,7 +90,11 @@ function MainTabs() {
           ),
         })}
       />
-      <Tab.Screen name="Search" component={GetProductById} options={{ headerShown: false }} />
+      <Tab.Screen
+        name="Search"
+        component={GetProductById}
+        options={{ headerShown: false }}
+      />
       <Tab.Screen name="Cart" component={Cart} />
       <Tab.Screen name="Account" component={AccountScreen} />
     </Tab.Navigator>
@@ -77,7 +107,12 @@ function AppNavigator() {
   if (authLoading) return null;
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        headerStyle: { backgroundColor: lightBlue },
+      }}
+    >
       {!userInfo ? (
         <>
           <Stack.Screen name="Login" component={LoginScreen} />
@@ -93,6 +128,7 @@ function AppNavigator() {
           <Stack.Screen name="Fruits" component={Fruits} />
           <Stack.Screen name="Mobiles" component={Mobiles} />
           <Stack.Screen name="Grocery" component={Grocery} />
+          <Stack.Screen name="Electricals" component={Electricals} />
         </>
       )}
     </Stack.Navigator>
