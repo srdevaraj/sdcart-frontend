@@ -1,7 +1,7 @@
-// src/screens/HomeScreen.js
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import axios from 'axios';
 
 const { width } = Dimensions.get('window');
 
@@ -13,57 +13,69 @@ export default function HomeScreen({ navigation }) {
     { name: 'Electricals', icon: 'flash', screen: 'Electricals' },
   ];
 
-  const ads = [
-    require('../../assets/ad1.jpg'),
-    require('../../assets/ad2.jpg'),
-    require('../../assets/ad3.jpg'),
-  ];
+  const [ads, setAds] = useState([]);
 
-  // For top banner
+  // Your Bearer token
+  const token = 'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1NTIyNTc4OSwiZXhwIjoxNzU1MzEyMTg5fQ.PY7T4crCQOyey0l0DRTPlEXqtDQbdz2uZGpcCVbDbsE';
+
+  // Fetch ads from backend
+  useEffect(() => {
+    const fetchAds = async () => {
+      try {
+        const res = await axios.get(
+          'https://sdcart-backend-1.onrender.com/api/ads',
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setAds(res.data);
+      } catch (err) {
+        console.log('Error fetching ads:', err.message);
+      }
+    };
+    fetchAds();
+  }, []);
+
+  // Top banner
   const scrollRefTop = useRef(null);
   const [currentIndexTop, setCurrentIndexTop] = useState(0);
 
-  // For bottom banner
+  // Bottom banner
   const scrollRefBottom = useRef(null);
   const [currentIndexBottom, setCurrentIndexBottom] = useState(0);
 
   // Auto-slide top
   useEffect(() => {
+    if (ads.length === 0) return;
     const timer = setInterval(() => {
       const nextIndex = (currentIndexTop + 1) % ads.length;
       scrollRefTop.current?.scrollTo({ x: nextIndex * width, animated: true });
       setCurrentIndexTop(nextIndex);
     }, 3000);
     return () => clearInterval(timer);
-  }, [currentIndexTop]);
+  }, [currentIndexTop, ads]);
 
   // Auto-slide bottom
   useEffect(() => {
+    if (ads.length === 0) return;
     const timer = setInterval(() => {
       const nextIndex = (currentIndexBottom + 1) % ads.length;
       scrollRefBottom.current?.scrollTo({ x: nextIndex * width, animated: true });
       setCurrentIndexBottom(nextIndex);
     }, 3000);
     return () => clearInterval(timer);
-  }, [currentIndexBottom]);
+  }, [currentIndexBottom, ads]);
 
-  // Handle scroll for top
+  // Scroll handlers
   const handleScrollTop = (event) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / width);
-    setCurrentIndexTop(index);
+    setCurrentIndexTop(Math.round(offsetX / width));
   };
-
-  // Handle scroll for bottom
   const handleScrollBottom = (event) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / width);
-    setCurrentIndexBottom(index);
+    setCurrentIndexBottom(Math.round(offsetX / width));
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
-
       {/* Top Auto-sliding ad banner */}
       <ScrollView
         ref={scrollRefTop}
@@ -74,10 +86,10 @@ export default function HomeScreen({ navigation }) {
         scrollEventThrottle={16}
         style={styles.adContainer}
       >
-        {ads.map((image, index) => (
+        {ads.map((ad) => (
           <Image
-            key={index}
-            source={image}
+            key={ad.id}
+            source={{ uri: ad.imageUrl }}
             style={styles.adImage}
             resizeMode="cover"
           />
@@ -89,10 +101,7 @@ export default function HomeScreen({ navigation }) {
         {ads.map((_, index) => (
           <View
             key={index}
-            style={[
-              styles.dot,
-              currentIndexTop === index ? styles.activeDot : null
-            ]}
+            style={[styles.dot, currentIndexTop === index ? styles.activeDot : null]}
           />
         ))}
       </View>
@@ -121,10 +130,10 @@ export default function HomeScreen({ navigation }) {
         scrollEventThrottle={16}
         style={[styles.adContainer, { marginTop: 15 }]}
       >
-        {ads.map((image, index) => (
+        {ads.map((ad) => (
           <Image
-            key={index}
-            source={image}
+            key={ad.id}
+            source={{ uri: ad.imageUrl }}
             style={styles.adImage}
             resizeMode="cover"
           />
@@ -136,71 +145,22 @@ export default function HomeScreen({ navigation }) {
         {ads.map((_, index) => (
           <View
             key={index}
-            style={[
-              styles.dot,
-              currentIndexBottom === index ? styles.activeDot : null
-            ]}
+            style={[styles.dot, currentIndexBottom === index ? styles.activeDot : null]}
           />
         ))}
       </View>
-
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  adContainer: {
-    marginTop: 10,
-    height: 150,
-  },
-  adImage: {
-    width: width,
-    height: 170,
-  },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginVertical: 5,
-  },
-  dot: {
-    height: 5,
-    width: 5,
-    borderRadius: 4,
-    backgroundColor: '#ccc',
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: 'blue',
-    width: 5,
-    height: 5,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: 0,
-    paddingVertical: 10,
-  },
-  categoryButton: {
-    width: 120,
-    height: 80,
-    backgroundColor: '#f1f1f1',
-    borderRadius: 10,
-    margin: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  categoryText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '500',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  adContainer: { marginTop: 10, height: 150 },
+  adImage: { width: width, height: 170 },
+  pagination: { flexDirection: 'row', justifyContent: 'center', marginVertical: 5 },
+  dot: { height: 5, width: 5, borderRadius: 4, backgroundColor: '#ccc', marginHorizontal: 4 },
+  activeDot: { backgroundColor: 'blue', width: 5, height: 5 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 0, paddingVertical: 10 },
+  categoryButton: { width: 120, height: 80, backgroundColor: '#f1f1f1', borderRadius: 10, margin: 10, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 } },
+  categoryText: { marginTop: 8, fontSize: 14, fontWeight: '500' },
 });
