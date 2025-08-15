@@ -68,7 +68,28 @@ export default function SelectedProduct({ route }) {
 
       <Text style={styles.name}>{product.name}</Text>
       <Text style={styles.price}>₹{product.price}</Text>
-      <Text style={styles.description}>{product.description}</Text>
+
+      {/* Description scrollable after 5 lines with hint */}
+      <View style={{ maxHeight: 110, marginBottom: 5, width: '100%', position: 'relative' }}>
+        <ScrollView
+          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+          scrollEnabled={product.description?.length > 150} // Enable only if long enough
+        >
+          <Text style={styles.description}>{product.description}</Text>
+        </ScrollView>
+
+        {/* Fade overlay if text is long */}
+        {product.description?.length > 150 && (
+          <View style={styles.fadeOverlay} pointerEvents="none" />
+        )}
+      </View>
+
+      {/* Scroll hint only if needed */}
+      {product.description?.length > 150 && (
+        <Text style={styles.scrollHint}>⬆ Scroll for more ⬇</Text>
+      )}
+
 
       <View style={styles.detailsContainer}>
         <Text style={styles.item}><Text style={styles.label}>📦 Stock:</Text> {product.stock}</Text>
@@ -76,6 +97,7 @@ export default function SelectedProduct({ route }) {
         <Text style={styles.item}><Text style={styles.label}>👤 Seller:</Text> {product.seller}</Text>
       </View>
 
+      {/* Keep buttons at the bottom of content */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={styles.addToCartbtn}
@@ -114,7 +136,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
     paddingBottom: 40,
-    marginTop: 60,
+    marginTop:35,
   },
   image: {
     width: screenWidth - 40,
@@ -137,13 +159,15 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: '#444',
+    color:'#444',
     marginBottom: 20,
+    backgroundColor:'#e8e8e8ff',
     textAlign: 'center',
   },
   detailsContainer: {
     alignSelf: 'flex-start',
     marginBottom: 20,
+    marginTop:15,
   },
   item: {
     fontSize: 16,
