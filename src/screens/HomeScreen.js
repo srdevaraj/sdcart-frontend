@@ -27,7 +27,7 @@ export default function HomeScreen({ navigation }) {
 
   // Your Bearer token
   const token =
-    'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1NTIyNTc4OSwiZXhwIjoxNzU1MzEyMTg5fQ.PY7T4crCQOyey0l0DRTPlEXqtDQbdz2uZGpcCVbDbsE';
+    'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1NTMyNjEzOCwiZXhwIjoxNzU1NDEyNTM4fQ.adB-IJyoxJ2C02POca3u3Kr4xi0Utrx4YgNaOGXBqpU';
 
   // Fetch ads from backend
   useEffect(() => {
@@ -37,11 +37,14 @@ export default function HomeScreen({ navigation }) {
           'https://sdcart-backend-1.onrender.com/api/ads',
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        // Simulate 2–3 sec wait before hiding loader
-        setTimeout(() => {
-          setAds(res.data);
-          setLoading(false);
-        }, 2000);
+
+        console.log('API Response:', res.data); // 👈 check structure
+
+        // Some APIs return {ads: [...]}, some directly return [...]
+        const adsData = Array.isArray(res.data) ? res.data : res.data.ads || [];
+
+        setAds(adsData);
+        setLoading(false);
       } catch (err) {
         console.log('Error fetching ads:', err.message);
         setLoading(false);
@@ -183,8 +186,8 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#b7dafdff' },
-  adContainer: { marginTop: 10, height: 150 },
-  adImage: { width: width, height: 170 },
+  adContainer: { marginTop: 10, height: 150, marginHorizontal:20 },
+  adImage: { width: width, height: 170, borderRadius:10},
   pagination: { flexDirection: 'row', justifyContent: 'center', marginVertical: 5 },
   dot: { height: 5, width: 5, borderRadius: 4, backgroundColor: 'black', marginHorizontal: 4 },
   activeDot: { backgroundColor: 'white', width: 5, height: 5 },

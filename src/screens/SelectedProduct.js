@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#b7dafdff',
     paddingBottom: 40,
     marginTop:35,
   },
@@ -160,8 +160,9 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     color:'#444',
-    marginBottom: 20,
-    backgroundColor:'#e8e8e8ff',
+    marginBottom: 10,
+    borderRadius: 10,
+    backgroundColor:'#b7dafdff',
     textAlign: 'center',
   },
   detailsContainer: {

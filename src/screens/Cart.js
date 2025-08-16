@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useCart } from '../context/CartContext';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 export default function CartScreen() {
   const { cartItems, clearCart, removeFromCart, reloadCart } = useCart();
@@ -19,9 +19,10 @@ export default function CartScreen() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [loading, setLoading] = useState(false); // <-- New loader state
+  const [loading, setLoading] = useState(false);
+  const navigation = useNavigation();
 
-  // Reload cart when screen gains focus
+  // 🔄 Reload cart whenever screen is focused
   useFocusEffect(
     useCallback(() => {
       const fetchCart = async () => {
@@ -33,7 +34,11 @@ export default function CartScreen() {
     }, [])
   );
 
-  const total = (cartItems || []).reduce((sum, item) => sum + (item.price || 0), 0);
+  // 🛒 Total calculations
+  const total = (cartItems || []).reduce(
+    (sum, item) => sum + (item.price || 0),
+    0
+  );
   const totalItems = cartItems?.length ?? 0;
 
   const toggleEditMode = () => {
@@ -80,10 +85,19 @@ export default function CartScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    setLoading(true); // Show loader during pull-to-refresh
+    setLoading(true);
     await reloadCart();
     setRefreshing(false);
     setLoading(false);
+  };
+
+  // 👉 Handle product click (FIXED: pass productId instead of cart item id)
+  const handleProductPress = (item) => {
+    if (editMode) {
+      toggleSelectItem(item.id); // still cart item id for selection
+    } else {
+      navigation.navigate('SelectedProduct', { id: item.productId });
+    }
   };
 
   const renderItem = ({ item }) => {
@@ -91,8 +105,8 @@ export default function CartScreen() {
     return (
       <TouchableOpacity
         style={[styles.itemContainer, editMode && isSelected && styles.selectedItem]}
-        onPress={() => editMode && toggleSelectItem(item.id)}
-        activeOpacity={editMode ? 0.6 : 1}
+        onPress={() => handleProductPress(item)}
+        activeOpacity={0.7}
       >
         <Image
           source={{ uri: item.imageUrl || 'https://via.placeholder.com/70' }}
@@ -106,7 +120,7 @@ export default function CartScreen() {
     );
   };
 
-  // Show loader if fetching data
+  // ⏳ Loader while fetching
   if (loading) {
     return (
       <View style={styles.loadingOverlay}>
@@ -120,7 +134,7 @@ export default function CartScreen() {
     <View style={styles.container}>
       <Text style={styles.heading}>🛒 Your Cart</Text>
 
-      {editMode && <Text style={styles.editModeNotice}>Select items to delete</Text>}
+      {editMode && <Text style={styles.editModeNotice}>Tap items to select for deletion</Text>}
 
       {cartItems.length === 0 ? (
         <Text style={styles.empty}>Your cart is empty.</Text>
