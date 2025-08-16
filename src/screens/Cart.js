@@ -19,11 +19,17 @@ export default function CartScreen() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [loading, setLoading] = useState(false); // <-- New loader state
 
   // Reload cart when screen gains focus
   useFocusEffect(
     useCallback(() => {
-      reloadCart();
+      const fetchCart = async () => {
+        setLoading(true);
+        await reloadCart();
+        setLoading(false);
+      };
+      fetchCart();
     }, [])
   );
 
@@ -74,8 +80,10 @@ export default function CartScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    setLoading(true); // Show loader during pull-to-refresh
     await reloadCart();
     setRefreshing(false);
+    setLoading(false);
   };
 
   const renderItem = ({ item }) => {
@@ -98,7 +106,8 @@ export default function CartScreen() {
     );
   };
 
-  if (!cartItems) {
+  // Show loader if fetching data
+  if (loading) {
     return (
       <View style={styles.loadingOverlay}>
         <ActivityIndicator size="large" color="#0080ff" />
