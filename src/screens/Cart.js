@@ -175,7 +175,7 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 30 },
+  container: { flex: 1, backgroundColor: '#b7dafdff', paddingHorizontal: 16, paddingTop: 30 },
   heading: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
   empty: { fontSize: 18, textAlign: 'center', marginTop: 100, color: '#999' },
   productListContainer: { flex: 1 },
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 16, fontWeight: '600' },
   itemPrice: { fontSize: 14, color: '#444', marginTop: 4 },
   selectedItem: { backgroundColor: '#ffe6e6', borderColor: '#ff3333', borderWidth: 1 },
-  footer: { backgroundColor: '#fff', padding: 12, borderTopWidth: 1, borderColor: '#ddd' },
+  footer: { backgroundColor: '#b7dafdff', padding: 12, borderTopWidth: 1, borderColor: '#ddd' },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   footerInfo: { fontSize: 16, fontWeight: '500' },
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   deleteText: { color: '#fff', textAlign: 'center', fontWeight: '600' },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    backgroundColor: '#b7dafdff',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -30,7 +30,7 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Light blue background for headers & tab bar
-const lightBlue = '#b7dafdff';
+const lightBlue = '#48d4ffff';
 
 function MainTabs() {
   return (

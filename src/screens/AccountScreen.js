@@ -174,7 +174,7 @@ export default function AccountScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#b7dafdff',
   },
   gap: {
     marginVertical: 10,

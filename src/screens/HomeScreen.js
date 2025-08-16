@@ -1,5 +1,14 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Dimensions,
+  ActivityIndicator,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import axios from 'axios';
 
@@ -14,9 +23,11 @@ export default function HomeScreen({ navigation }) {
   ];
 
   const [ads, setAds] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Your Bearer token
-  const token = 'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1NTIyNTc4OSwiZXhwIjoxNzU1MzEyMTg5fQ.PY7T4crCQOyey0l0DRTPlEXqtDQbdz2uZGpcCVbDbsE';
+  const token =
+    'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1NTIyNTc4OSwiZXhwIjoxNzU1MzEyMTg5fQ.PY7T4crCQOyey0l0DRTPlEXqtDQbdz2uZGpcCVbDbsE';
 
   // Fetch ads from backend
   useEffect(() => {
@@ -26,9 +37,14 @@ export default function HomeScreen({ navigation }) {
           'https://sdcart-backend-1.onrender.com/api/ads',
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        setAds(res.data);
+        // Simulate 2–3 sec wait before hiding loader
+        setTimeout(() => {
+          setAds(res.data);
+          setLoading(false);
+        }, 2000);
       } catch (err) {
         console.log('Error fetching ads:', err.message);
+        setLoading(false);
       }
     };
     fetchAds();
@@ -73,6 +89,18 @@ export default function HomeScreen({ navigation }) {
     const offsetX = event.nativeEvent.contentOffset.x;
     setCurrentIndexBottom(Math.round(offsetX / width));
   };
+
+  // Show loader while fetching
+  if (loading) {
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="large" color="blue" />
+        <Text style={{ marginTop: 10, fontSize: 16, color: '#333' }}>
+          Loading, please wait...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
@@ -154,13 +182,37 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: '#b7dafdff' },
   adContainer: { marginTop: 10, height: 150 },
   adImage: { width: width, height: 170 },
   pagination: { flexDirection: 'row', justifyContent: 'center', marginVertical: 5 },
-  dot: { height: 5, width: 5, borderRadius: 4, backgroundColor: '#ccc', marginHorizontal: 4 },
-  activeDot: { backgroundColor: 'blue', width: 5, height: 5 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 0, paddingVertical: 10 },
-  categoryButton: { width: 120, height: 80, backgroundColor: '#f1f1f1', borderRadius: 10, margin: 10, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 } },
+  dot: { height: 5, width: 5, borderRadius: 4, backgroundColor: 'black', marginHorizontal: 4 },
+  activeDot: { backgroundColor: 'white', width: 5, height: 5 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 0,
+    paddingVertical: 10,
+  },
+  categoryButton: {
+    width: 120,
+    height: 80,
+    backgroundColor: '#f1f1f1',
+    borderRadius: 10,
+    margin: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+  },
   categoryText: { marginTop: 8, fontSize: 14, fontWeight: '500' },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#b7dafdff',
+  },
 });

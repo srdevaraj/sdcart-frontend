@@ -104,13 +104,13 @@ export default function ProductSearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#b7dafdff',
   },
   searchContainer: {
     flexDirection: 'row',
     padding: 12,
     paddingTop: 30, // adds space from top
-    backgroundColor: '#fff',
+    backgroundColor: '#b7dafdff',
     elevation: 3,
   },
   input: {
