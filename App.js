@@ -12,7 +12,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 // Screens
 import HomeScreen from './src/screens/HomeScreen';
 import ProductScreen from './src/screens/ProductScreen';
-import GetProductById from './src/screens/GetProductByIdScreen';
+import SearchScreen from './src/screens/SearchScreen';
 import SelectedProduct from './src/screens/SelectedProduct';
 import AdminScreen from './src/screens/AdminScreen';
 import Admin from './src/screens/Admin';
@@ -25,6 +25,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import AccountScreen from './src/screens/AccountScreen';
 import Electricals from './src/screens/Electricals';
+
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -92,7 +93,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Search"
-        component={GetProductById}
+        component={SearchScreen}
         options={{ headerShown: false }}
       />
       <Tab.Screen name="Cart" component={Cart} />
