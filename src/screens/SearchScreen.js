@@ -24,19 +24,17 @@ const CARD_WIDTH = width / 2 - 20;
 export default function SearchScreen() {
   const [category, setCategory] = useState('');
   const [brand, setBrand] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
+  const [priceRange, setPriceRange] = useState(null); // ✅ Track selected price option
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const { addToCart } = useCart();
 
   const handleSearch = async () => {
-    if (!category && !brand && !minPrice && !maxPrice) return;
+    if (!category && !brand && !priceRange) return;
 
     setLoading(true);
     try {
-      // ✅ Build dynamic search URL
       let url = `${BASE_URL}/search?query=`;
       if (brand) url += `&brand=${brand}`;
       if (category) url += `&category=${category}`;
@@ -45,19 +43,16 @@ export default function SearchScreen() {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       });
 
-      // ✅ Paginated response → extract products
       let fetchedProducts = response.data?.content || [];
 
-      // ✅ Apply price filtering client-side
-      if (minPrice) {
-        fetchedProducts = fetchedProducts.filter(
-          (p) => p.price >= parseInt(minPrice)
-        );
-      }
-      if (maxPrice) {
-        fetchedProducts = fetchedProducts.filter(
-          (p) => p.price <= parseInt(maxPrice)
-        );
+      // ✅ Apply price filter
+      if (priceRange) {
+        const { min, max } = priceRange;
+        fetchedProducts = fetchedProducts.filter((p) => {
+          if (min !== null && p.price < min) return false;
+          if (max !== null && p.price > max) return false;
+          return true;
+        });
       }
 
       setProducts(fetchedProducts);
@@ -91,6 +86,13 @@ export default function SearchScreen() {
     </View>
   );
 
+  // ✅ Price ranges for radio buttons
+  const priceOptions = [
+    { label: 'Under ₹1000', min: 0, max: 1000 },
+    { label: '₹1000 - ₹5000', min: 1000, max: 5000 },
+    { label: 'Above ₹5000', min: 5000, max: null },
+  ];
+
   return (
     <View style={styles.container}>
       {/* Filters */}
@@ -103,6 +105,7 @@ export default function SearchScreen() {
               selectedValue={category}
               onValueChange={(value) => setCategory(value)}
               style={styles.picker}
+              dropdownIconColor="#333"
             >
               <Picker.Item label="Category" value="" />
               <Picker.Item label="Mobile" value="Mobile" />
@@ -117,6 +120,7 @@ export default function SearchScreen() {
               selectedValue={brand}
               onValueChange={(value) => setBrand(value)}
               style={styles.picker}
+              dropdownIconColor="#333"
             >
               <Picker.Item label="Brand" value="" />
               <Picker.Item label="Realme" value="Realme" />
@@ -126,32 +130,27 @@ export default function SearchScreen() {
           </View>
         </View>
 
-        {/* Price Range Chips */}
+        {/* ✅ Price Range Radio Buttons */}
         <View style={styles.priceChipsRow}>
-          <TouchableOpacity
-            onPress={() => {
-              setMinPrice('0');
-              setMaxPrice('1000');
-            }}
-          >
-            <Text style={styles.chip}>Under ₹1000</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setMinPrice('1000');
-              setMaxPrice('5000');
-            }}
-          >
-            <Text style={styles.chip}>₹1000 - ₹5000</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setMinPrice('5000');
-              setMaxPrice('');
-            }}
-          >
-            <Text style={styles.chip}>Above ₹5000</Text>
-          </TouchableOpacity>
+          {priceOptions.map((option, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.chip,
+                priceRange?.label === option.label && styles.selectedChip,
+              ]}
+              onPress={() => setPriceRange(option)}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  priceRange?.label === option.label && styles.selectedChipText,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Apply Filters */}
@@ -206,10 +205,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
     backgroundColor: '#eee',
     borderRadius: 8,
+    marginTop: 10,
+    justifyContent: 'center',
   },
   picker: {
-    height: 45,
     width: '100%',
+    minHeight: 50,
   },
   priceChipsRow: {
     flexDirection: 'row',
@@ -217,14 +218,25 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   chip: {
-    backgroundColor: '#007bff',
-    color: '#fff',
+    backgroundColor: '#eee',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    fontSize: 14,
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ccc',
     marginRight: 6,
+  },
+  chipText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  selectedChip: {
+    backgroundColor: '#007bff',
+    borderColor: '#007bff',
+  },
+  selectedChipText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   searchBtn: {
     backgroundColor: '#28a745',
