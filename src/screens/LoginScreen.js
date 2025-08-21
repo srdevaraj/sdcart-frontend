@@ -112,6 +112,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 24,
     alignSelf: 'center',
+    color: '#000',   // ✅ Title always visible
   },
   input: {
     height: 50,
@@ -120,12 +121,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 8,
     paddingHorizontal: 12,
+    color: '#000',   // ✅ Fix: force input text color to black
   },
   registerText: {
     marginTop: 16,
     textAlign: 'center',
+    color: '#000',   // ✅ ensure readable on all themes
   },
   link: {
     color: 'blue',
   },
 });
+
