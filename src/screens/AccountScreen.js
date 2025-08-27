@@ -1,5 +1,4 @@
-// src/screens/AccountScreen.js
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  ActivityIndicator,   // ✅ added
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ import * as Animatable from 'react-native-animatable';
 export default function AccountScreen({ navigation }) {
   const { userInfo, logout, authLoading, refreshUserInfo } = useAuth();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [loadingButton, setLoadingButton] = useState(null); // ✅ which button is loading
   const containerRef = useRef(null);
 
   useLayoutEffect(() => {
@@ -40,7 +41,8 @@ export default function AccountScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const AnimatedRow = ({ icon, iconColor, text, onPress, label, delay }) => (
+  // 🔥 Reusable row with loader logic
+  const AnimatedRow = ({ icon, iconColor, text, onPress, label, delay, keyId }) => (
     <Animatable.View
       animation="fadeInUpBig"
       duration={900}
@@ -55,9 +57,21 @@ export default function AccountScreen({ navigation }) {
         <TouchableOpacity
           style={styles.button}
           activeOpacity={0.7}
-          onPress={onPress}
+          onPress={async () => {
+            setLoadingButton(keyId); // ✅ set which button is loading
+            try {
+              await onPress(); // allow async fetch/navigation
+            } finally {
+              setLoadingButton(null); // ✅ reset after done
+            }
+          }}
+          disabled={loadingButton === keyId}
         >
-          <Text style={styles.buttonText}>View</Text>
+          {loadingButton === keyId ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>View</Text>
+          )}
         </TouchableOpacity>
       </View>
     </Animatable.View>
@@ -97,66 +111,71 @@ export default function AccountScreen({ navigation }) {
         </Animatable.Text>
 
         <AnimatedRow
+          keyId="account"
           icon="person-circle-outline"
           iconColor="#555"
           text="Account Info"
-          onPress={() => navigation.navigate('AccountInfo')}
+          onPress={async () => navigation.navigate('AccountInfo')}
           label="Account Info section"
           delay={200}
         />
         <View style={styles.gap} />
 
         <AnimatedRow
+          keyId="orders"
           icon="cube-outline"
           iconColor="#8e44ad"
           text="My Orders"
-          onPress={() => navigation.navigate('Orders')}
+          onPress={async () => navigation.navigate('Orders')}
           label="Orders section"
           delay={400}
         />
         <View style={styles.gap} />
 
         <AnimatedRow
+          keyId="favourites"
           icon="heart-outline"
           iconColor="#e74c3c"
           text="Favourites"
-          onPress={() => navigation.navigate('Favourites')}
+          onPress={async () => navigation.navigate('Favourites')}
           label="Favourites section"
           delay={600}
         />
         <View style={styles.gap} />
 
         <AnimatedRow
+          keyId="address"
           icon="location-outline"
           iconColor="#27ae60"
           text="Delivery Address"
-          onPress={() => navigation.navigate('DeliveryAddress')}
+          onPress={async () => navigation.navigate('DeliveryAddress')}
           label="Delivery Address section"
           delay={800}
         />
         <View style={styles.gap} />
 
         <AnimatedRow
+          keyId="coupons"
           icon="pricetags-outline"
           iconColor="#f39c12"
           text="Coupons"
-          onPress={() => navigation.navigate('Coupons')}
+          onPress={async () => navigation.navigate('Coupons')}
           label="Coupons section"
           delay={1000}
         />
         <View style={styles.gap} />
 
         <AnimatedRow
+          keyId="help"
           icon="help-circle-outline"
           iconColor="#2980b9"
           text="Help Center"
-          onPress={() => navigation.navigate('HelpCenter')}
+          onPress={async () => navigation.navigate('HelpCenter')}
           label="Help Center section"
           delay={1200}
         />
         <View style={styles.gap} />
 
-        {/* sdCart footer text */}
         <Animatable.Text
           animation="fadeIn"
           duration={1500}
@@ -170,6 +189,7 @@ export default function AccountScreen({ navigation }) {
     </ScrollView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

@@ -20,12 +20,13 @@ import CategoryModal from './src/screens/CategoryModal';
 import Fruits from './src/screens/Fruits';
 import Mobiles from './src/screens/Mobiles';
 import Grocery from './src/screens/Grocery';
+import Electricals from './src/screens/Electricals';
 import Cart from './src/screens/Cart';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import AccountScreen from './src/screens/AccountScreen';
-import Electricals from './src/screens/Electricals';
-
+import DeliveryAddress from './src/screens/DeliveryAddress';
+import AddEditAddress from './src/screens/AddEditAddress';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -52,8 +53,8 @@ function MainTabs() {
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: 'blue', // Active icon color
-        tabBarInactiveTintColor: 'black', // Inactive icon color
+        tabBarActiveTintColor: 'blue',
+        tabBarInactiveTintColor: 'black',
         headerShown: true,
         headerStyle: { backgroundColor: lightBlue },
         tabBarStyle: { backgroundColor: lightBlue },
@@ -130,6 +131,9 @@ function AppNavigator() {
           <Stack.Screen name="Mobiles" component={Mobiles} />
           <Stack.Screen name="Grocery" component={Grocery} />
           <Stack.Screen name="Electricals" component={Electricals} />
+          {/* Newly added Address management screens */}
+          <Stack.Screen name="DeliveryAddress" component={DeliveryAddress} />
+          <Stack.Screen name="AddEditAddress" component={AddEditAddress} />
         </>
       )}
     </Stack.Navigator>
