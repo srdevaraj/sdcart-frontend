@@ -3,20 +3,23 @@
     "version": ">= 3.0.0",
     "appVersionSource": "remote"
   },
-    "preview": {
+  "build": {
+    "development": {
+      "developmentClient": true,
       "distribution": "internal"
-  },
-  "build":{
-      "preview":{
-        "android":{
-          "buildType":"apk"
-        }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
       }
-  },
-    "production":{
-      "android":{
-        "buildType":"apk"
-      }
+    },
+    "production": {
+      "android": {
+        "buildType": "apk"
+      },
+      "autoIncrement": true
+    }
   },
   "submit": {
     "production": {}
