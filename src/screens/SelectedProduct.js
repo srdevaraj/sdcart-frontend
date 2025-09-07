@@ -1,14 +1,23 @@
+// screens/SelectedProduct.js
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, Image, StyleSheet, ActivityIndicator,
-  ScrollView, Alert, TouchableOpacity, Dimensions
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+  Alert,
+  TouchableOpacity,
+  Dimensions
 } from 'react-native';
 import { getProductById } from '../services/productService';
 import { useCart } from '../context/CartContext';
 
 const screenWidth = Dimensions.get('window').width;
+const CLOUDINARY_BASE_URL = 'https://res.cloudinary.com/<your-cloud-name>/image/upload/';
 
-export default function SelectedProduct({ route }) {
+export default function SelectedProduct({ route, navigation }) {
   const { id } = route.params;
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,6 +31,10 @@ export default function SelectedProduct({ route }) {
   const fetchProductDetails = async () => {
     try {
       const data = await getProductById(id);
+      // Prepend Cloudinary URL if needed
+      if (data.imageUrl && !data.imageUrl.startsWith('http')) {
+        data.imageUrl = `${CLOUDINARY_BASE_URL}${data.imageUrl}`;
+      }
       setProduct(data);
     } catch (error) {
       Alert.alert("Error", "Failed to load product.");
@@ -34,10 +47,10 @@ export default function SelectedProduct({ route }) {
   const handleAddToCart = async () => {
     setAddingToCart(true);
     try {
-      await addToCart(product.id);
+      await addToCart(product.id, 1); // quantity = 1
       Alert.alert("Success", "Item added to cart");
     } catch (error) {
-      Alert.alert("Error", "Failed to add item to cart.");
+      Alert.alert("Error", error.message || "Failed to add item to cart.");
       console.error("Add to cart error:", error);
     } finally {
       setAddingToCart(false);
@@ -69,27 +82,24 @@ export default function SelectedProduct({ route }) {
       <Text style={styles.name}>{product.name}</Text>
       <Text style={styles.price}>₹{product.price}</Text>
 
-      {/* Description scrollable after 5 lines with hint */}
+      {/* Description scrollable after 5 lines */}
       <View style={{ maxHeight: 110, marginBottom: 5, width: '100%', position: 'relative' }}>
         <ScrollView
           nestedScrollEnabled={true}
           showsVerticalScrollIndicator={true}
-          scrollEnabled={product.description?.length > 150} // Enable only if long enough
+          scrollEnabled={product.description?.length > 150}
         >
           <Text style={styles.description}>{product.description}</Text>
         </ScrollView>
 
-        {/* Fade overlay if text is long */}
         {product.description?.length > 150 && (
           <View style={styles.fadeOverlay} pointerEvents="none" />
         )}
       </View>
 
-      {/* Scroll hint only if needed */}
       {product.description?.length > 150 && (
         <Text style={styles.scrollHint}>⬆ Scroll for more ⬇</Text>
       )}
-
 
       <View style={styles.detailsContainer}>
         <Text style={styles.item}><Text style={styles.label}>📦 Stock:</Text> {product.stock}</Text>
@@ -97,7 +107,6 @@ export default function SelectedProduct({ route }) {
         <Text style={styles.item}><Text style={styles.label}>👤 Seller:</Text> {product.seller}</Text>
       </View>
 
-      {/* Keep buttons at the bottom of content */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={styles.addToCartbtn}
@@ -115,7 +124,7 @@ export default function SelectedProduct({ route }) {
 
         <TouchableOpacity
           style={styles.buyBtn}
-          onPress={() => Alert.alert("Coming Soon", "Proceed to checkout is under development.")}
+          onPress={() => navigation.navigate('OrderScreen', { product })}
         >
           <Text style={styles.btnText}>BUY</Text>
         </TouchableOpacity>
@@ -136,7 +145,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#b7dafdff',
     paddingBottom: 40,
-    marginTop:35,
+    marginTop: 35,
   },
   image: {
     width: screenWidth - 40,
@@ -159,16 +168,29 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color:'#444',
+    color: '#444',
     marginBottom: 10,
     borderRadius: 10,
-    backgroundColor:'#b7dafdff',
+    backgroundColor: '#b7dafdff',
+    textAlign: 'center',
+  },
+  fadeOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    height: 25,
+    width: '100%',
+    backgroundColor: 'rgba(183,218,253,0.8)',
+  },
+  scrollHint: {
+    fontSize: 12,
+    color: '#555',
+    marginBottom: 10,
     textAlign: 'center',
   },
   detailsContainer: {
     alignSelf: 'flex-start',
     marginBottom: 20,
-    marginTop:15,
+    marginTop: 15,
   },
   item: {
     fontSize: 16,

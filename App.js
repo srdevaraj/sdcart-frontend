@@ -1,3 +1,4 @@
+// App.js
 import React from 'react';
 import { StatusBar, SafeAreaView, View, Image, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -14,6 +15,9 @@ import HomeScreen from './src/screens/HomeScreen';
 import ProductScreen from './src/screens/ProductScreen';
 import SearchScreen from './src/screens/SearchScreen';
 import SelectedProduct from './src/screens/SelectedProduct';
+import OrderScreen from './src/screens/OrderScreen';
+import PaymentScreen from './src/screens/PaymentScreen';
+import PaymentResultScreen from './src/screens/PaymentResultScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import Admin from './src/screens/Admin';
 import CategoryModal from './src/screens/CategoryModal';
@@ -31,7 +35,6 @@ import AddEditAddress from './src/screens/AddEditAddress';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Light blue background for headers & tab bar
 const lightBlue = '#48d4ffff';
 
 function MainTabs() {
@@ -40,16 +43,24 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size, focused }) => {
           let iconName;
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Products') {
-            iconName = focused ? 'pricetags' : 'pricetags-outline';
-          } else if (route.name === 'Search') {
-            iconName = focused ? 'search' : 'search-outline';
-          } else if (route.name === 'Cart') {
-            iconName = focused ? 'cart' : 'cart-outline';
-          } else if (route.name === 'Account') {
-            iconName = focused ? 'person' : 'person-outline';
+          switch (route.name) {
+            case 'Home':
+              iconName = focused ? 'home' : 'home-outline';
+              break;
+            case 'Products':
+              iconName = focused ? 'pricetags' : 'pricetags-outline';
+              break;
+            case 'Search':
+              iconName = focused ? 'search' : 'search-outline';
+              break;
+            case 'Cart':
+              iconName = focused ? 'cart' : 'cart-outline';
+              break;
+            case 'Account':
+              iconName = focused ? 'person' : 'person-outline';
+              break;
+            default:
+              iconName = 'circle';
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
@@ -110,10 +121,7 @@ function AppNavigator() {
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        headerStyle: { backgroundColor: lightBlue },
-      }}
+      screenOptions={{ headerShown: false, headerStyle: { backgroundColor: lightBlue } }}
     >
       {!userInfo ? (
         <>
@@ -124,6 +132,9 @@ function AppNavigator() {
         <>
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen name="SelectedProduct" component={SelectedProduct} />
+          <Stack.Screen name="OrderScreen" component={OrderScreen} />
+          <Stack.Screen name="Payment" component={PaymentScreen} />
+          <Stack.Screen name="PaymentResult" component={PaymentResultScreen} />
           <Stack.Screen name="AdminScreen" component={AdminScreen} />
           <Stack.Screen name="Admin" component={Admin} />
           <Stack.Screen name="CategoryModal" component={CategoryModal} />
@@ -131,7 +142,6 @@ function AppNavigator() {
           <Stack.Screen name="Mobiles" component={Mobiles} />
           <Stack.Screen name="Grocery" component={Grocery} />
           <Stack.Screen name="Electricals" component={Electricals} />
-          {/* Newly added Address management screens */}
           <Stack.Screen name="DeliveryAddress" component={DeliveryAddress} />
           <Stack.Screen name="AddEditAddress" component={AddEditAddress} />
         </>
