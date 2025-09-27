@@ -1,4 +1,4 @@
-// src/screens/SearchScreen.js
+// ✅ FULLY MERGED SearchScreen.js
 import React, { useState, useMemo } from 'react';
 import {
   View,
@@ -8,11 +8,13 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import axios from 'axios';
 import { useCart } from '../context/CartContext';
+import { addToCartAPI } from '../api/cartApi'; // ✅ same logic as ProductScreen
 
 const BASE_URL = 'https://sdcart-backend-1.onrender.com/products';
 const ADMIN_TOKEN =
@@ -24,17 +26,18 @@ const formatK = (num) => {
   return num >= 1000 ? `${num / 1000}k` : num.toString();
 };
 
-export default function SearchScreen() {
+export default function SearchScreen({ navigation }) {
   const [category, setCategory] = useState('');
   const [brand, setBrand] = useState('');
   const [priceRange, setPriceRange] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
+  const [addingToCartId, setAddingToCartId] = useState(null);
 
   const { addToCart } = useCart();
 
-  // ✅ Price ranges
+  // ✅ Price options
   const priceOptions = useMemo(() => {
     if (category === 'Mobile') {
       return [
@@ -90,43 +93,61 @@ export default function SearchScreen() {
     }
   };
 
-  const handleAddToCart = (product) => {
-    addToCart(product);
+  // ✅ Same as ProductScreen
+  const handleAddToCart = async (product) => {
+    try {
+      setAddingToCartId(product.id);
+      await addToCartAPI(product.id, 1);
+      Alert.alert("Success", "Product added to cart.");
+    } catch (error) {
+      console.error("❌ Add to cart failed:", error);
+      Alert.alert("Error", error.message || "Failed to add to cart.");
+    } finally {
+      setAddingToCartId(null);
+    }
   };
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      {/* Left - Image */}
-      <Image source={{ uri: item.imageUrl }} style={styles.image} />
+  <TouchableOpacity
+    style={styles.card}
+    onPress={() => navigation.navigate('SelectedProduct', { product: item, id: item.id })}
+  >
+    <Image source={{ uri: item.imageUrl }} style={styles.image} />
 
-      {/* Right - Details */}
-      <View style={styles.details}>
-        <Text style={styles.name} numberOfLines={2}>
-          {item.name}
-        </Text>
-        <Text style={styles.reviews}>⭐⭐⭐⭐ (120)</Text>
-        <Text style={styles.price}>₹{item.price}</Text>
+    <View style={styles.details}>
+      <Text style={styles.name} numberOfLines={2}>
+        {item.name}
+      </Text>
+      <Text style={styles.reviews}>⭐⭐⭐⭐ (120)</Text>
+      <Text style={styles.price}>₹{item.price}</Text>
 
-        {/* Buttons Row */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={styles.cartButton}
-            onPress={() => handleAddToCart(item)}
-          >
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={styles.cartButton}
+          onPress={() => handleAddToCart(item)}
+          disabled={addingToCartId === item.id}
+        >
+          {addingToCartId === item.id ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
             <Text style={styles.buttonText}>Add to Cart</Text>
-          </TouchableOpacity>
+          )}
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.buyButton}>
-            <Text style={styles.buttonText}>Buy Now</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.buyButton}
+          onPress={() => navigation.navigate('OrderScreen', { product: item })}
+        >
+          <Text style={styles.buttonText}>Buy Now</Text>
+        </TouchableOpacity>
       </View>
     </View>
-  );
+  </TouchableOpacity>
+);
 
   return (
     <View style={styles.container}>
-      {/* Filters */}
+      {/* ✅ Restored Filter UI */}
       <View style={styles.filterContainer}>
         {showFilters && (
           <>
@@ -195,7 +216,7 @@ export default function SearchScreen() {
           </>
         )}
 
-        {/* Toggle */}
+        {/* Toggle button */}
         <TouchableOpacity
           style={styles.toggleBtn}
           onPress={() => setShowFilters((prev) => !prev)}
@@ -214,23 +235,14 @@ export default function SearchScreen() {
       ) : (
         <FlatList
           data={products}
-          key="list"   // 👈 fixed: stable key, no dynamic numColumns
+          key="list"
           keyExtractor={(item) => item.id?.toString()}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             !loading && (
-              <View
-                style={{
-                  flex: 1,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginTop: 50,
-                }}
-              >
-                <Text style={{ fontSize: 16, color: '#999' }}>
-                  No products found. Try another filter.
-                </Text>
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>No products found. Try another filter.</Text>
               </View>
             )
           }
@@ -285,8 +297,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     elevation: 2,
   },
-
-  // ✅ Amazon-like Product Card
   list: { padding: 10 },
   card: {
     flexDirection: 'row',
@@ -319,4 +329,11 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   buttonText: { color: '#fff', fontWeight: 'bold' },
+  empty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  emptyText: { fontSize: 16, color: '#999' },
 });
