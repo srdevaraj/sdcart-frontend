@@ -27,7 +27,7 @@ const api = axios.create({
 const CLOUDINARY_BASE_URL = 'https://res.cloudinary.com/<your-cloud-name>/image/upload/';
 
 export default function Fruits({ navigation }) {
-  const CATEGORY_NAME = 'Mobile';
+  const CATEGORY_NAME = 'Fruits';
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
