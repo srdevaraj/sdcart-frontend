@@ -19,7 +19,7 @@ export default function HomeScreen({ navigation }) {
     { name: 'Mobiles', icon: 'cellphone', screen: 'Mobiles' },
     { name: 'Grocery', icon: 'cart', screen: 'Grocery' },
     { name: 'Fruits', icon: 'food-apple', screen: 'Fruits' },
-    { name: 'Electricals', icon: 'flash', screen: 'Electricals' },
+    { name: 'Electricals', icon: 'flash', screen: 'ElectricalsModule' },
   ];
 
   const [ads, setAds] = useState([]);
