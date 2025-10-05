@@ -27,7 +27,7 @@ export default function HomeScreen({ navigation }) {
 
   // Your Bearer token
   const token =
-    'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1NTQ3OTg3MywiZXhwIjoxNzU1NTY2MjczfQ.jlZ7d61zIYdX28vDiFPrNmsKCttlF1BYcSQG3BlCEQ4';
+    'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1OTU5MTAyNywiZXhwIjoxNzU5Njc3NDI3fQ.J8O91vjacjquUi-LDrJUtSM9zbvk-b6HzTtR_UUu5_Y';
 
   // Fetch ads from backend
   useEffect(() => {

@@ -51,7 +51,25 @@ export default function SearchScreen({ navigation }) {
         { label: `₹${formatK(15000)} - ₹${formatK(25000)}`, min: 15000, max: 25000 },
         { label: `Above ₹${formatK(25000)}`, min: 25000, max: null },
       ];
-    } else {
+    } else if(category === 'grocery'){
+      return [
+        { label: `Under ₹${formatK(30)}`, min: 0, max: 30 },
+        { label: `₹${formatK(30)} - ₹${formatK(50)}`, min: 30, max: 50 },
+        { label: `Above ₹${formatK(50)}`, min: 50, max: null },
+      ];
+    } else if(category === 'electricals'){
+      return [
+        { label: `Under ₹${formatK(1000)}`, min: 0, max: 1000 },
+        { label: `₹${formatK(1000)} - ₹${formatK(5000)}`, min: 1000, max: 5000 },
+        { label: `Above ₹${formatK(5000)}`, min: 5000, max: null },
+      ];
+    }else if(category === 'fruits'){
+      return [
+        { label: `Under ₹${formatK(200)}`, min: 0, max: 200 },
+        { label: `₹${formatK(200)} - ₹${formatK(300)}`, min: 200, max: 300 },
+        { label: `Above ₹${formatK(300)}`, min: 300, max: null },
+      ];
+    }else {
       return [
         { label: `Under ₹${formatK(1000)}`, min: 0, max: 1000 },
         { label: `₹${formatK(1000)} - ₹${formatK(5000)}`, min: 1000, max: 5000 },
@@ -167,6 +185,9 @@ export default function SearchScreen({ navigation }) {
                   <Picker.Item label="Mobile" value="Mobile" />
                   <Picker.Item label="Laptop" value="Laptop" />
                   <Picker.Item label="Clothes" value="Clothes" />
+                  <Picker.Item label="Grocery" value="grocery" />
+                  <Picker.Item label="Electricals" value="electricals" />
+                  <Picker.Item label="Fruits" value="fruits" />
                 </Picker>
               </View>
 
