@@ -32,6 +32,7 @@ import AccountScreen from './src/screens/AccountScreen';
 import DeliveryAddress from './src/screens/DeliveryAddress';
 import AddEditAddress from './src/screens/AddEditAddress';
 import ElectricalsModule from './src/screens/ElectricalsModule';
+import AccountInfoScreen from './src/screens/AccountInfoScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -145,6 +146,8 @@ function AppNavigator() {
           <Stack.Screen name="ElectricalsModule" component={ElectricalsModule} />
           <Stack.Screen name="DeliveryAddress" component={DeliveryAddress} />
           <Stack.Screen name="AddEditAddress" component={AddEditAddress} />
+          <Stack.Screen name="AccountInfo" component={AccountInfoScreen} />
+
         </>
       )}
     </Stack.Navigator>
