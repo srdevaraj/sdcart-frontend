@@ -9,7 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 
 const { width } = Dimensions.get('window');
@@ -145,7 +145,7 @@ export default function HomeScreen({ navigation }) {
             style={styles.categoryButton}
             onPress={() => navigation.navigate(cat.screen)}
           >
-            <Icon name={cat.icon} size={40} color="blue" />
+            <MaterialCommunityIcons name={cat.icon} size={40} color="blue" />
             <Text style={styles.categoryText}>{cat.name}</Text>
           </TouchableOpacity>
         ))}

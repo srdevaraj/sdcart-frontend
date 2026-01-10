@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   center: { justifyContent: 'center', alignItems: 'center', marginTop: 20 },
-  logo: { width: 100, height: 100, marginBottom: 15 },
+  logo: { width: 100, height: 100, marginBottom: 15, borderRadius:40 },
   header: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', color: '#333' },
   card: { 
     backgroundColor: '#fff', 

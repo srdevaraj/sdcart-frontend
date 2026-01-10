@@ -6,7 +6,8 @@ import {
   StyleSheet, 
   ActivityIndicator, 
   ScrollView, 
-  RefreshControl 
+  RefreshControl,
+  Image 
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -27,7 +28,7 @@ export default function AccountInfoScreen() {
       if (!token) throw new Error('User not authenticated');
 
       // Fetch user info
-      const userResponse = await axios.get(`${API_BASE_URL}/api/auth/userinfo`, {
+      const userResponse = await axios.get(`${API_BASE_URL}/api/user/userinfo`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -36,7 +37,9 @@ export default function AccountInfoScreen() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      setUser(userResponse.data.user || userResponse.data); // handle nested "user" key
+      // Set user data
+      setUser(userResponse.data.user || userResponse.data);
+
       // Address API might return object or array
       if (Array.isArray(addressResponse.data)) {
         setAddress(addressResponse.data.length > 0 ? addressResponse.data[0] : null);
@@ -85,6 +88,14 @@ export default function AccountInfoScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
+      {/* Logo on top */}
+      <View style = {styles.imagelogo}>
+        <Image 
+          source={require('../../assets/clogo.png')} 
+          style={styles.logo} 
+          resizeMode="contain"
+        />
+      </View>
       {/* User Info */}
       {user && (
         <View style={styles.section}>
@@ -94,7 +105,6 @@ export default function AccountInfoScreen() {
           <Text style={styles.label}>Mobile: {user.mobile}</Text>
           <Text style={styles.label}>Alt Mobile: {user.altMobile || '-'}</Text>
           <Text style={styles.label}>DOB: {user.dob || '-'}</Text>
-          <Text style={styles.label}>Role: {user.role}</Text>
         </View>
       )}
 
@@ -138,4 +148,6 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#1976d2' },
   label: { fontSize: 16, marginBottom: 8, color: '#333' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  logo: { marginTop:'10%' ,width: 100, height: 100, marginBottom: 15, borderRadius:40, },
+  imagelogo: {alignItems:'center'}
 });
