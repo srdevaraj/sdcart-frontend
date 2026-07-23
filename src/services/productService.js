@@ -29,12 +29,18 @@ const getAuthHeaders = async () => {
 /**
  * Fetch all products (lightweight list: id, name, price)
  */
-export const getAllProducts = async () => {
+/**
+ * Fetch products with pagination
+ */
+export const getAllProducts = async (page = 0, size = 25) => {
   try {
-    const res = await fetch(`${API_BASE_URL}/products/light`, {
-      method: 'GET',
-      headers: await getAuthHeaders(),
-    });
+    const res = await fetch(
+      `${API_BASE_URL}/products/light?page=${page}&size=${size}`,
+      {
+        method: "GET",
+        headers: await getAuthHeaders(),
+      }
+    );
 
     if (!res.ok) {
       throw new Error(`Error ${res.status}: ${res.statusText}`);
@@ -42,7 +48,7 @@ export const getAllProducts = async () => {
 
     return await res.json();
   } catch (error) {
-    console.error('getAllProducts failed:', error.message);
+    console.error("getAllProducts failed:", error.message);
     throw error;
   }
 };

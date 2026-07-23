@@ -55,31 +55,53 @@ export default function ProductScreen({ navigation, route }) {
     }
   }, [route.params]);
 
-  const fetchProducts = async () => {
-    try {
-      const data = await getAllProducts();
+const [page, setPage] = useState(0);
+const [last, setLast] = useState(false);
 
-      // Ensure imageUrl is a valid Cloudinary URL
-      const processedData = data.map(item => ({
-        ...item,
-        imageUrl: item.imageUrl && !item.imageUrl.startsWith('http')
+const fetchProducts = async (pageNumber = 0) => {
+  try {
+    if (pageNumber === 0) {
+      setLoading(true);
+    }
+
+    const response = await getAllProducts(pageNumber, 25);
+
+    const processedData = response.content.map(item => ({
+      ...item,
+      imageUrl:
+        item.imageUrl && !item.imageUrl.startsWith("http")
           ? `${CLOUDINARY_BASE_URL}${item.imageUrl}`
           : item.imageUrl,
-      }));
+    }));
 
+    if (pageNumber === 0) {
       setProducts(processedData);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to fetch products.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    } else {
+      setProducts(prev => [...prev, ...processedData]);
     }
-  };
+
+    setPage(response.page);
+    setLast(response.last);
+
+  } catch (error) {
+    Alert.alert("Error", "Failed to fetch products.");
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchProducts();
+    setLast(false);
+    fetchProducts(0);
   };
+
+  const loadMore = () => {
+  if (!loading && !last) {
+    fetchProducts(page + 1);
+  }
+};
 
   const filterByCategory = (category) => {
     setModalVisible(false);
@@ -170,12 +192,23 @@ export default function ProductScreen({ navigation, route }) {
       ) : (
         <FlatList
           data={products}
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           numColumns={2}
-          columnWrapperStyle={{ justifyContent: 'space-between' }}
+          columnWrapperStyle={{ justifyContent: "space-between" }}
           refreshing={refreshing}
           onRefresh={handleRefresh}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            !last ? (
+              <ActivityIndicator
+                size="small"
+                color="blue"
+                style={{ marginVertical: 20 }}
+              />
+            ) : null
+          }
         />
       )}
     </View>
