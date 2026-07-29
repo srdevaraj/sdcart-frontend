@@ -10,212 +10,290 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
-
 const { width } = Dimensions.get('window');
-
 export default function HomeScreen({ navigation }) {
   const categories = [
-    { name: 'Mobiles', icon: 'cellphone', screen: 'Mobiles' },
-    { name: 'Grocery', icon: 'cart', screen: 'Grocery' },
-    { name: 'Fruits', icon: 'food-apple', screen: 'Fruits' },
-    { name: 'Electricals', icon: 'flash', screen: 'ElectricalsModule' },
+    {
+      name: 'Mobiles',
+      icon: 'cellphone',
+      screen: 'Mobiles',
+      colors: ['#667eea', '#764ba2']
+    },
+    {
+      name: 'Grocery',
+      icon: 'cart',
+      screen: 'Grocery',
+      colors: ['#11998e', '#38ef7d']
+    },
+    {
+      name: 'Fruits',
+      icon: 'food-apple',
+      screen: 'Fruits',
+      colors: ['#f7971e', '#ffd200']
+    },
+    {
+      name: 'Electricals',
+      icon: 'flash',
+      screen: 'ElectricalsModule',
+      colors: ['#ff512f', '#dd2476']
+    },
   ];
-
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Your Bearer token
-  const token =
-    'eyJhbGciOiJIUzI1NiJ9.eyJmaXJzdE5hbWUiOiJUIiwibGFzdE5hbWUiOiJUZXN0aW5nIiwicm9sZSI6IlJPTEVfQURNSU4iLCJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTc1OTU5MTAyNywiZXhwIjoxNzU5Njc3NDI3fQ.J8O91vjacjquUi-LDrJUtSM9zbvk-b6HzTtR_UUu5_Y';
-
-  // Fetch ads from backend
+  const token = 'YOUR_TOKEN_HERE';
   useEffect(() => {
     const fetchAds = async () => {
       try {
-        const res = await axios.get(
+        const response = await axios.get(
           'https://sdcart-backend-1.onrender.com/api/ads',
-          { headers: { Authorization: `Bearer ${token}` } }
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
         );
-
-        console.log('API Response:', res.data); // 👈 check structure
-
-        // Some APIs return {ads: [...]}, some directly return [...]
-        const adsData = Array.isArray(res.data) ? res.data : res.data.ads || [];
-
+        const adsData = Array.isArray(response.data)
+          ? response.data
+          : response.data.ads || [];
         setAds(adsData);
-        setLoading(false);
-      } catch (err) {
-        console.log('Error fetching ads:', err.message);
+      } catch (error) {
+        console.log(error.message);
+      } finally {
         setLoading(false);
       }
     };
     fetchAds();
   }, []);
-
-  // Top banner
-  const scrollRefTop = useRef(null);
-  const [currentIndexTop, setCurrentIndexTop] = useState(0);
-
-  // Bottom banner
-  const scrollRefBottom = useRef(null);
-  const [currentIndexBottom, setCurrentIndexBottom] = useState(0);
-
-  // Auto-slide top
+  const scrollRef = useRef(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   useEffect(() => {
     if (ads.length === 0) return;
     const timer = setInterval(() => {
-      const nextIndex = (currentIndexTop + 1) % ads.length;
-      scrollRefTop.current?.scrollTo({ x: nextIndex * width, animated: true });
-      setCurrentIndexTop(nextIndex);
+      const next =
+        (currentIndex + 1) % ads.length;
+      scrollRef.current?.scrollTo({
+        x: next * width,
+        animated: true
+      });
+      setCurrentIndex(next);
     }, 3000);
     return () => clearInterval(timer);
-  }, [currentIndexTop, ads]);
-
-  // Auto-slide bottom
-  useEffect(() => {
-    if (ads.length === 0) return;
-    const timer = setInterval(() => {
-      const nextIndex = (currentIndexBottom + 1) % ads.length;
-      scrollRefBottom.current?.scrollTo({ x: nextIndex * width, animated: true });
-      setCurrentIndexBottom(nextIndex);
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [currentIndexBottom, ads]);
-
-  // Scroll handlers
-  const handleScrollTop = (event) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    setCurrentIndexTop(Math.round(offsetX / width));
+  }, [currentIndex, ads]);
+  const handleScroll = (event) => {
+    const offset =
+      event.nativeEvent.contentOffset.x;
+    setCurrentIndex(
+      Math.round(offset / width)
+    );
   };
-  const handleScrollBottom = (event) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    setCurrentIndexBottom(Math.round(offsetX / width));
-  };
-
-  // Show loader while fetching
   if (loading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="blue" />
-        <Text style={{ marginTop: 10, fontSize: 16, color: '#333' }}>
-          Loading, please wait...
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.loader}
+      >
+        <ActivityIndicator
+          size="large"
+          color="#fff"
+        />
+        <Text style={styles.loadingText}>
+          Loading...
         </Text>
-      </View>
+      </LinearGradient>
     );
   }
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
-      {/* Top Auto-sliding ad banner */}
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      <LinearGradient
+        colors={['#141e30', '#243b55']}
+        style={styles.header}
+      >
+        <Text style={styles.welcome}>
+          Welcome Back 👋
+        </Text>
+        <Text style={styles.title}>
+          Shop Smart, Live Better
+        </Text>
+      </LinearGradient>
       <ScrollView
-        ref={scrollRefTop}
+        ref={scrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScrollTop}
+        onScroll={handleScroll}
         scrollEventThrottle={16}
-        style={styles.adContainer}
       >
-        {ads.map((ad) => (
-          <Image
-            key={ad.id}
-            source={{ uri: ad.imageUrl }}
-            style={styles.adImage}
-            resizeMode="cover"
-          />
-        ))}
+        {
+          ads.map((ad) => (
+            <Image
+              key={ad.id}
+              source={{
+                uri: ad.imageUrl
+              }}
+              style={styles.banner}
+              resizeMode="cover"
+            />
+          ))
+        }
       </ScrollView>
-
-      {/* Pagination dots (top) */}
       <View style={styles.pagination}>
-        {ads.map((_, index) => (
-          <View
-            key={index}
-            style={[styles.dot, currentIndexTop === index ? styles.activeDot : null]}
-          />
-        ))}
+        {
+          ads.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.dot,
+                currentIndex === index &&
+                styles.activeDot
+              ]}
+            />
+          ))
+        }
       </View>
-
-      {/* Category grid */}
-      <View style={styles.grid}>
-        {categories.map((cat, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.categoryButton}
-            onPress={() => navigation.navigate(cat.screen)}
-          >
-            <MaterialCommunityIcons name={cat.icon} size={40} color="blue" />
-            <Text style={styles.categoryText}>{cat.name}</Text>
-          </TouchableOpacity>
-        ))}
+      <Text style={styles.sectionTitle}>
+        Categories
+      </Text>
+      <View style={styles.categoryGrid}>
+        {
+          categories.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              activeOpacity={0.8}
+              onPress={() =>
+                navigation.navigate(item.screen)
+              }
+            >
+              <LinearGradient
+                colors={item.colors}
+                style={styles.categoryCard}
+              >
+                <View style={styles.iconBox}>
+                  <MaterialCommunityIcons
+                    name={item.icon}
+                    size={40}
+                    color="#333"
+                  />
+                </View>
+                <Text style={styles.categoryText}>
+                  {item.name}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))
+        }
       </View>
-
-      {/* Bottom Auto-sliding ad banner */}
-      <ScrollView
-        ref={scrollRefBottom}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScrollBottom}
-        scrollEventThrottle={16}
-        style={[styles.adContainer, { marginTop: 15 }]}
-      >
-        {ads.map((ad) => (
-          <Image
-            key={ad.id}
-            source={{ uri: ad.imageUrl }}
-            style={styles.adImage}
-            resizeMode="cover"
-          />
-        ))}
-      </ScrollView>
-
-      {/* Pagination dots (bottom) */}
-      <View style={styles.pagination}>
-        {ads.map((_, index) => (
-          <View
-            key={index}
-            style={[styles.dot, currentIndexBottom === index ? styles.activeDot : null]}
-          />
-        ))}
-      </View>
+      {
+        ads.length > 0 &&
+        <Image
+          source={{
+            uri: ads[0].imageUrl
+          }}
+          style={styles.bottomBanner}
+          resizeMode="cover"
+        />
+      }
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#b7dafdff' },
-  adContainer: { marginTop: 10, height: 150, marginHorizontal:20 },
-  adImage: { width: width, height: 170, borderRadius:10},
-  pagination: { flexDirection: 'row', justifyContent: 'center', marginVertical: 5 },
-  dot: { height: 5, width: 5, borderRadius: 4, backgroundColor: 'black', marginHorizontal: 4 },
-  activeDot: { backgroundColor: 'white', width: 5, height: 5 },
-  grid: {
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f7fb'
+  },
+  header: {
+    paddingTop: 50,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  welcome: {
+    color: '#ddd',
+    fontSize: 16
+  },
+  title: {
+    color: '#fff',
+    fontSize: 25,
+    fontWeight: 'bold',
+    marginTop: 5
+  },
+  banner: {
+    width: width - 30,
+    height: 170,
+    margin: 15,
+    borderRadius: 25
+  },
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 10,
+    backgroundColor: '#bbb',
+    margin: 5
+  },
+  activeDot: {
+    width: 25,
+    backgroundColor: '#667eea'
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginLeft: 20,
+    marginTop: 25
+  },
+  categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 0,
-    paddingVertical: 10,
+    marginTop: 15
   },
-  categoryButton: {
-    width: 120,
-    height: 80,
-    backgroundColor: '#f1f1f1',
-    borderRadius: 10,
+  categoryCard: {
+    width: 150,
+    height: 120,
     margin: 10,
-    justifyContent: 'center',
+    borderRadius: 25,
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
+    justifyContent: 'center',
+    elevation: 8
   },
-  categoryText: { marginTop: 8, fontSize: 14, fontWeight: '500' },
-  loaderContainer: {
+  iconBox: {
+    width: 55,
+    height: 55,
+    borderRadius: 30,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  categoryText: {
+    marginTop: 10,
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16
+  },
+  bottomBanner: {
+    width: width - 40,
+    height: 140,
+    margin: 20,
+    borderRadius: 25
+  },
+  
+  loader: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#b7dafdff',
+    alignItems: 'center'
   },
+  loadingText: {
+    color: '#fff',
+    fontSize: 18,
+    marginTop: 15
+  }
 });
