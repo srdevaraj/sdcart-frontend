@@ -1,12 +1,8 @@
-// screens/HomeScreen.js
-
-
 import React, {
   useEffect,
   useRef,
   useState,
 } from 'react';
-
 
 import {
   View,
@@ -19,1359 +15,611 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-
-
 import {
   MaterialCommunityIcons,
-} from '@expo/vector-icons';
-
-
-
-import {
   Ionicons,
 } from '@expo/vector-icons';
-
-
 
 import {
   LinearGradient,
 } from 'expo-linear-gradient';
 
-
-
 import axios from 'axios';
 
-
-
-
 const {
-  width
+  width,
 } = Dimensions.get('window');
 
-
-
-
-
-/*
-=================================================
-CONSTANTS
-=================================================
-*/
-
+// ============================================================
+// CONSTANTS
+// ============================================================
 
 const API_URL =
-'https://sdcart-backend-1.onrender.com/api/ads';
-
-
-
-
+  'https://sdcart-backend-1.onrender.com/api/ads';
 
 const categories = [
-
-
   {
-    name:'Mobiles',
-    icon:'cellphone',
-    screen:'Mobiles',
-    colors:[
+    name: 'Mobiles',
+    icon: 'cellphone',
+    screen: 'Mobiles',
+    colors: [
       '#667eea',
-      '#764ba2'
-    ]
+      '#764ba2',
+    ],
   },
 
-
   {
-    name:'Grocery',
-    icon:'cart',
-    screen:'Grocery',
-    colors:[
+    name: 'Grocery',
+    icon: 'cart',
+    screen: 'Grocery',
+    colors: [
       '#11998e',
-      '#38ef7d'
-    ]
+      '#38ef7d',
+    ],
   },
 
-
   {
-    name:'Fruits',
-    icon:'food-apple',
-    screen:'Fruits',
-    colors:[
+    name: 'Fruits',
+    icon: 'food-apple',
+    screen: 'Fruits',
+    colors: [
       '#f7971e',
-      '#ffd200'
-    ]
+      '#ffd200',
+    ],
   },
-
 
   {
-    name:'Electricals',
-    icon:'flash',
-    screen:'ElectricalsModule',
-    colors:[
+    name: 'Electricals',
+    icon: 'flash',
+    screen: 'ElectricalsModule',
+    colors: [
       '#ff512f',
-      '#dd2476'
-    ]
+      '#dd2476',
+    ],
   },
-
-
 ];
 
-
-
-
-
-
-
-
-
 export default function HomeScreen({
-
-  navigation
-
+  navigation,
 }) {
 
+  // ==========================================================
+  // STATES
+  // ==========================================================
 
+  const [
+    ads,
+    setAds,
+  ] = useState([]);
 
-/*
-=================================================
-STATES
-=================================================
-*/
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
+  const [
+    currentIndex,
+    setCurrentIndex,
+  ] = useState(0);
 
-const [
-  ads,
-  setAds
-] = useState([]);
+  const scrollRef =
+    useRef(null);
 
+  // ==========================================================
+  // FETCH ADS
+  // ==========================================================
 
+  useEffect(() => {
 
-const [
-  loading,
-  setLoading
-] = useState(true);
+    const fetchAds =
+      async () => {
 
+        try {
 
+          const response =
+            await axios.get(
+              API_URL
+            );
 
-const [
-  currentIndex,
-  setCurrentIndex
-] = useState(0);
+          const adsData =
+            Array.isArray(
+              response.data
+            )
+              ? response.data
+              : response.data.ads || [];
 
+          setAds(
+            adsData
+          );
 
+        } catch (error) {
 
+          console.log(
+            'Ads Fetch Error:',
+            error.message
+          );
 
-const scrollRef =
-useRef(null);
+        } finally {
 
+          setLoading(false);
 
+        }
 
+      };
 
+    fetchAds();
 
+  }, []);
 
+  // ==========================================================
+  // AUTO SLIDER
+  // ==========================================================
 
+  useEffect(() => {
 
-
-/*
-=================================================
-FETCH ADS
-=================================================
-*/
-
-
-useEffect(()=>{
-
-
- const fetchAds =
- async()=>{
-
-
-  try{
-
-
-    const response =
-    await axios.get(
-      API_URL
-    );
-
-
-
-    const adsData =
-
-    Array.isArray(
-      response.data
-    )
-
-    ?
-
-    response.data
-
-    :
-
-    response.data.ads || [];
-
-
-
-
-    setAds(
-      adsData
-    );
-
-
-
-  }
-  catch(error){
-
-
-    console.log(
-      "Ads Fetch Error:",
-      error.message
-    );
-
-
-
-  }
-  finally{
-
-
-    setLoading(false);
-
-
-  }
-
-
-
- };
-
-
-
- fetchAds();
-
-
-
-},[]);
-
-
-
-
-
-/*
-=================================================
-AUTO SLIDER
-=================================================
-*/
-
-
-useEffect(()=>{
-
-
- if(
-  ads.length <= 1
- )
- return;
-
-
-
-
- const interval =
- setInterval(()=>{
-
-
- const nextIndex =
-
- (
-   currentIndex + 1
- )
-
- %
-
- ads.length;
-
-
-
-
- scrollRef.current?.scrollTo({
-
-   x:
-   nextIndex * width,
-
-   animated:true,
-
- });
-
-
-
- setCurrentIndex(
-   nextIndex
- );
-
-
-
- },4000);
-
-
-
- return ()=>clearInterval(
-   interval
- );
-
-
-
-},[
- currentIndex,
- ads
-]);
-
-
-
-
-
-// ================================================
-// BANNER SCROLL HANDLER
-// ================================================
-
-
-const handleScroll =
-(event)=>{
-
-
- const offset =
- event.nativeEvent.contentOffset.x;
-
-
-
- const index =
- Math.round(
-   offset / width
- );
-
-
-
- setCurrentIndex(
-   index
- );
-
-
-};
-
-
-
-
-
-
-
-
-
-// ================================================
-// LOADING SCREEN
-// ================================================
-
-
-if(loading){
-
-
- return(
-
-
-  <LinearGradient
-
-
-    colors={[
-      '#141E30',
-      '#243B55'
-    ]}
-
-
-    style={
-      styles.loader
+    if (
+      ads.length <= 1
+    ) {
+      return;
     }
 
+    const interval =
+      setInterval(() => {
 
-  >
+        const nextIndex =
+          (
+            currentIndex + 1
+          ) % ads.length;
 
+        scrollRef.current?.scrollTo({
+          x: nextIndex * width,
+          animated: true,
+        });
 
-    <ActivityIndicator
+        setCurrentIndex(
+          nextIndex
+        );
 
+      }, 4000);
 
-      size="large"
+    return () =>
+      clearInterval(
+        interval
+      );
 
+  }, [
+    currentIndex,
+    ads,
+  ]);
 
-      color="#FFFFFF"
+  // ==========================================================
+  // BANNER SCROLL HANDLER
+  // ==========================================================
 
+  const handleScroll =
+    (event) => {
 
-    />
+      const offset =
+        event.nativeEvent
+          .contentOffset.x;
 
+      const index =
+        Math.round(
+          offset / width
+        );
 
+      setCurrentIndex(
+        index
+      );
 
-    <Text
+    };
 
+  // ==========================================================
+  // LOADING SCREEN
+  // ==========================================================
+
+  if (loading) {
+
+    return (
+
+      <LinearGradient
+        colors={[
+          '#141E30',
+          '#243B55',
+        ]}
+        style={
+          styles.loader
+        }
+      >
+
+        <ActivityIndicator
+          size="large"
+          color="#FFFFFF"
+        />
+
+        <Text
+          style={
+            styles.loadingText
+          }
+        >
+          Preparing your shopping experience...
+        </Text>
+
+      </LinearGradient>
+
+    );
+
+  }
+
+  // ==========================================================
+  // MAIN UI
+  // ==========================================================
+
+  return (
+
+    <ScrollView
       style={
-        styles.loadingText
+        styles.container
       }
-
+      showsVerticalScrollIndicator={
+        false
+      }
     >
 
-      Preparing your shopping experience...
+      {/* ======================================================
+          HEADER
+          ====================================================== */}
 
+      <LinearGradient
+        colors={[
+          '#141E30',
+          '#243B55',
+        ]}
+        style={
+          styles.header
+        }
+      >
 
-    </Text>
+        <View
+          style={
+            styles.headerRow
+          }
+        >
 
+          <View>
 
+            <Text
+              style={
+                styles.welcome
+              }
+            >
+              Hello 👋
+            </Text>
 
-  </LinearGradient>
+            <Text
+              style={
+                styles.title
+              }
+            >
+              Shop Smart, Live Better
+            </Text>
 
+          </View>
 
- );
+        </View>
 
+        {/* ====================================================
+            SEARCH
+            ==================================================== */}
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={
+            styles.searchBox
+          }
+          onPress={() =>
+            navigation.navigate(
+              'Search'
+            )
+          }
+        >
+
+          <Ionicons
+            name="search"
+            size={22}
+            color="#667085"
+          />
+
+          <Text
+            style={
+              styles.searchText
+            }
+          >
+            Search products...
+          </Text>
+
+        </TouchableOpacity>
+
+      </LinearGradient>
+
+      {/* ======================================================
+          OFFER BANNER
+          ====================================================== */}
+
+      {
+        ads.length > 0 && (
+
+          <>
+
+            <ScrollView
+              ref={scrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={
+                false
+              }
+              onScroll={
+                handleScroll
+              }
+              scrollEventThrottle={16}
+            >
+
+              {
+                ads.map(
+                  (ad) => (
+
+                    <Image
+                      key={ad.id}
+                      source={{
+                        uri: ad.imageUrl,
+                      }}
+                      resizeMode="cover"
+                      style={
+                        styles.banner
+                      }
+                    />
+
+                  )
+                )
+              }
+
+            </ScrollView>
+
+            <View
+              style={
+                styles.pagination
+              }
+            >
+
+              {
+                ads.map(
+                  (_, index) => (
+
+                    <View
+                      key={index}
+                      style={[
+                        styles.dot,
+                        currentIndex === index &&
+                          styles.activeDot,
+                      ]}
+                    />
+
+                  )
+                )
+              }
+
+            </View>
+
+          </>
+
+        )
+      }
+
+      {/* ======================================================
+          CATEGORY HEADER
+          ====================================================== */}
+
+      <View
+        style={
+          styles.sectionHeader
+        }
+      >
+
+        <Text
+          style={
+            styles.sectionTitle
+          }
+        >
+          Categories
+        </Text>
+
+        <Text
+          style={
+            styles.viewAll
+          }
+        >
+          View All
+        </Text>
+
+      </View>
+
+      {/* ======================================================
+          CATEGORY CARDS
+          ====================================================== */}
+
+      <View
+        style={
+          styles.categoryGrid
+        }
+      >
+
+        {
+          categories.map(
+            (item, index) => (
+
+              <TouchableOpacity
+                key={index}
+                activeOpacity={0.85}
+                onPress={() =>
+                  navigation.navigate(
+                    item.screen
+                  )
+                }
+              >
+
+                <LinearGradient
+                  colors={
+                    item.colors
+                  }
+                  style={
+                    styles.categoryCard
+                  }
+                >
+
+                  <View
+                    style={
+                      styles.iconContainer
+                    }
+                  >
+
+                    <MaterialCommunityIcons
+                      name={
+                        item.icon
+                      }
+                      size={36}
+                      color="#111827"
+                    />
+
+                  </View>
+
+                  <Text
+                    style={
+                      styles.categoryText
+                    }
+                  >
+                    {item.name}
+                  </Text>
+
+                </LinearGradient>
+
+              </TouchableOpacity>
+
+            )
+          )
+        }
+
+      </View>
+
+      {/* ======================================================
+          FEATURE OFFER CARD
+          ====================================================== */}
+
+      {
+        ads.length > 0 && (
+
+          <View
+            style={
+              styles.featureCard
+            }
+          >
+
+            <Image
+              source={{
+                uri:
+                  ads[0].imageUrl,
+              }}
+              resizeMode="cover"
+              style={
+                styles.featureImage
+              }
+            />
+
+            <LinearGradient
+              colors={[
+                'transparent',
+                'rgba(0,0,0,0.75)',
+              ]}
+              style={
+                styles.overlay
+              }
+            />
+
+            <View
+              style={
+                styles.featureContent
+              }
+            >
+
+              <Text
+                style={
+                  styles.featureTitle
+                }
+              >
+                Special Offers
+              </Text>
+
+              <Text
+                style={
+                  styles.featureSubtitle
+                }
+              >
+                Grab the best deals today
+              </Text>
+
+            </View>
+
+          </View>
+
+        )
+      }
+
+    </ScrollView>
+
+  );
 
 }
 
-
-
-
-
-
-
-
-// ================================================
-// MAIN UI
-// ================================================
-
-
-return(
-
-
-
-<ScrollView
-
-
-style={
-  styles.container
-}
-
-
-showsVerticalScrollIndicator={false}
-
-
-
->
-
-
-
-{/* ==========================================
-    HEADER
-========================================== */}
-
-
-
-<LinearGradient
-
-
-colors={[
-
- '#141E30',
-
- '#243B55'
-
-]}
-
-
-
-style={
-  styles.header
-}
-
-
-
->
-
-
-<View
-
-style={
- styles.headerRow
-}
-
->
-
-
-
-<View>
-
-
-<Text
-
-style={
- styles.welcome
-}
-
->
-
-Hello 👋
-
-
-</Text>
-
-
-
-
-<Text
-
-style={
- styles.title
-}
-
->
-
-Shop Smart, Live Better
-
-
-</Text>
-
-
-
-</View>
-
-
-
-
-
-
-
-<View
-
-style={
- styles.headerIcons
-}
-
->
-
-
-
-<TouchableOpacity
-
-
-style={
- styles.circleButton
-}
-
-
-
-onPress={()=>
-
-
-navigation.navigate(
- 'Cart'
-)
-
-
-}
-
-
-
->
-
-
-
-<Ionicons
-
-
-name="cart-outline"
-
-
-size={25}
-
-
-color="#FFFFFF"
-
-
-
-/>
-
-
-
-</TouchableOpacity>
-
-
-
-
-
-
-
-
-<TouchableOpacity
-
-
-style={
- styles.circleButton
-}
-
-
->
-
-
-
-<Ionicons
-
-
-name="notifications-outline"
-
-
-size={25}
-
-
-color="#FFFFFF"
-
-
-
-/>
-
-
-
-</TouchableOpacity>
-
-
-
-</View>
-
-
-
-
-</View>
-
-
-
-
-
-
-
-
-
-{/* SEARCH */}
-
-
-
-<TouchableOpacity
-
-
-activeOpacity={0.9}
-
-
-
-style={
- styles.searchBox
-}
-
-
-
-onPress={()=>
-
-
-navigation.navigate(
- 'Search'
-)
-
-
-}
-
-
-
->
-
-
-
-<Ionicons
-
-
-name="search"
-
-
-size={22}
-
-
-color="#667085"
-
-
-
-/>
-
-
-
-<Text
-
-
-style={
- styles.searchText
-}
-
-
->
-
-Search products...
-
-
-</Text>
-
-
-
-</TouchableOpacity>
-
-
-
-
-
-</LinearGradient>
-
-
-
-
-
-
-
-
-
-
-
-{/* ==========================================
-    OFFER BANNER
-========================================== */}
-
-
-
-{
-ads.length > 0 &&
-
-
-
-<>
-
-
-<ScrollView
-
-
-ref={
- scrollRef
-}
-
-
-
-horizontal
-
-
-pagingEnabled
-
-
-
-showsHorizontalScrollIndicator={false}
-
-
-
-onScroll={
- handleScroll
-}
-
-
-
-scrollEventThrottle={16}
-
-
-
->
-
-
-
-{
-
-
-ads.map(
-(ad)=>(
-
-
-
-<Image
-
-
-key={
- ad.id
-}
-
-
-
-source={{
-
- uri:
- ad.imageUrl
-
-}}
-
-
-
-resizeMode="cover"
-
-
-
-style={
- styles.banner
-}
-
-
-
->
-
-
-
-</Image>
-
-
-
-)
-
-
-)
-
-
-
-}
-
-
-
-</ScrollView>
-
-
-
-
-
-
-
-
-
-<View
-
-style={
- styles.pagination
-}
-
->
-
-
-{
-
-
-ads.map(
-(_,index)=>(
-
-
-
-<View
-
-
-key={
- index
-}
-
-
-
-style={[
-
- styles.dot,
-
-
- currentIndex===index &&
-
- styles.activeDot
-
-
-]}
-
-
-
->
-
-
-
-</View>
-
-
-
-)
-
-
-
-)
-
-
-
-}
-
-
-
-</View>
-
-
-
-</>
-
-
-}
-
-
-
-
-
-
-
-
-{/* ==========================================
-    CATEGORY HEADER
-========================================== */}
-
-
-
-<View
-
-style={
- styles.sectionHeader
-}
-
-
->
-
-
-
-<Text
-
-
-style={
- styles.sectionTitle
-}
-
-
-
->
-
-Categories
-
-
-</Text>
-
-
-
-
-
-<TouchableOpacity>
-
-
-<Text
-
-
-style={
- styles.viewAll
-}
-
-
-
->
-
-View All
-
-
-</Text>
-
-
-
-</TouchableOpacity>
-
-
-
-</View>
-
-
-
-
-
-
-
-{/* ==========================================
-    CATEGORY CARDS
-========================================== */}
-
-
-
-<View
-
-style={
- styles.categoryGrid
-}
-
->
-
-
-{
-
-
-categories.map(
-
-(item,index)=>(
-
-
-<TouchableOpacity
-
-
-
-key={
- index
-}
-
-
-
-activeOpacity={0.85}
-
-
-
-onPress={()=>
-
-
-navigation.navigate(
- item.screen
-)
-
-
-}
-
-
-
->
-
-
-<LinearGradient
-
-
-colors={
- item.colors
-}
-
-
-
-style={
- styles.categoryCard
-}
-
-
-
->
-
-
-<View
-
-style={
- styles.iconContainer
-}
-
-
->
-
-
-
-<MaterialCommunityIcons
-
-
-name={
- item.icon
-}
-
-
-
-size={36}
-
-
-
-color="#111827"
-
-
-
-/>
-
-
-
-</View>
-
-
-
-
-
-
-
-<Text
-
-
-style={
- styles.categoryText
-}
-
-
-
->
-
-{
- item.name
-}
-
-
-
-</Text>
-
-
-
-
-
-
-</LinearGradient>
-
-
-
-
-
-</TouchableOpacity>
-
-
-
-)
-
-
-)
-
-
-
-}
-
-
-
-</View>
-
-
-{/* ==========================================
-    FEATURE OFFER CARD
-========================================== */}
-
-
-
-{
-ads.length > 0 &&
-
-
-
-<View
-
-style={
- styles.featureCard
-}
-
->
-
-
-
-<Image
-
-
-source={{
-
- uri:
- ads[0].imageUrl
-
-}}
-
-
-
-resizeMode="cover"
-
-
-
-style={
- styles.featureImage
-}
-
-
-
-/>
-
-
-
-
-
-
-<LinearGradient
-
-
-colors={[
-
-'transparent',
-
-'rgba(0,0,0,0.75)'
-
-]}
-
-
-
-style={
- styles.overlay
-}
-
-
-
-/>
-
-
-
-
-
-
-
-
-<View
-
-style={
- styles.featureContent
-}
-
-
-
->
-
-
-
-<Text
-
-
-style={
- styles.featureTitle
-}
-
-
-
->
-
-Special Offers
-
-
-</Text>
-
-
-
-
-
-<Text
-
-
-style={
- styles.featureSubtitle
-}
-
-
-
->
-
-Grab the best deals today
-
-
-</Text>
-
-
-
-
-
-</View>
-
-
-
-
-
-
-
-</View>
-
-
-
-}
-
-
-
-
-
-
-</ScrollView>
-
-
-
-);
-
-
-}
-
-
-
-
-
-
-
-
-/*
-=================================================
-STYLES
-=================================================
-*/
-
+// ============================================================
+// STYLES
+// ============================================================
 
 const styles = StyleSheet.create({
 
-  /*
-  ================================================
-  ROOT
-  ================================================
-  */
+  // ==========================================================
+  // ROOT
+  // ==========================================================
 
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
 
-
-  /*
-  ================================================
-  HEADER
-  ================================================
-  */
+  // ==========================================================
+  // HEADER
+  // ==========================================================
 
   header: {
-
     paddingTop: 55,
     paddingHorizontal: 20,
     paddingBottom: 28,
 
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
-
   },
 
-
   headerRow: {
-
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-
   },
 
-
   welcome: {
-
     fontSize: 15,
     color: '#CBD5E1',
     fontWeight: '500',
-
   },
 
-
   title: {
-
     marginTop: 6,
 
     fontSize: 27,
@@ -1381,45 +629,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
 
     letterSpacing: 0.3,
-
   },
 
-
-  headerIcons: {
-
-    flexDirection: 'row',
-    gap: 12,
-
-  },
-
-
-  circleButton: {
-
-    width: 46,
-    height: 46,
-
-    borderRadius: 23,
-
-    backgroundColor:
-      'rgba(255,255,255,0.15)',
-
-    justifyContent: 'center',
-
-    alignItems: 'center',
-
-  },
-
-
-
-  /*
-  ================================================
-  SEARCH
-  ================================================
-  */
-
+  // ==========================================================
+  // SEARCH
+  // ==========================================================
 
   searchBox: {
-
     height: 54,
 
     backgroundColor: '#FFFFFF',
@@ -1434,338 +650,253 @@ const styles = StyleSheet.create({
 
     paddingHorizontal: 18,
 
+    shadowColor: '#000',
 
-    shadowColor:'#000',
-
-    shadowOffset:{
-      width:0,
-      height:4
+    shadowOffset: {
+      width: 0,
+      height: 4,
     },
 
-    shadowOpacity:0.08,
+    shadowOpacity: 0.08,
 
-    shadowRadius:8,
+    shadowRadius: 8,
 
-    elevation:4,
-
+    elevation: 4,
   },
-
 
   searchText: {
+    marginLeft: 12,
 
-    marginLeft:12,
+    color: '#98A2B3',
 
-    color:'#98A2B3',
+    fontSize: 15,
 
-    fontSize:15,
-
-    fontWeight:'500',
-
+    fontWeight: '500',
   },
 
-
-
-  /*
-  ================================================
-  BANNER SLIDER
-  ================================================
-  */
-
+  // ==========================================================
+  // BANNER SLIDER
+  // ==========================================================
 
   banner: {
-
     width: width - 32,
 
-    height:190,
+    height: 190,
 
-    marginHorizontal:16,
+    marginHorizontal: 16,
 
-    marginTop:20,
+    marginTop: 20,
 
-    borderRadius:26,
-
+    borderRadius: 26,
   },
-
 
   pagination: {
+    flexDirection: 'row',
 
-    flexDirection:'row',
+    justifyContent: 'center',
 
-    justifyContent:'center',
+    alignItems: 'center',
 
-    alignItems:'center',
-
-    marginTop:12,
-
+    marginTop: 12,
   },
-
 
   dot: {
+    width: 8,
 
-    width:8,
+    height: 8,
 
-    height:8,
+    borderRadius: 10,
 
-    borderRadius:10,
+    backgroundColor: '#CBD5E1',
 
-    backgroundColor:'#CBD5E1',
-
-    marginHorizontal:4,
-
+    marginHorizontal: 4,
   },
-
 
   activeDot: {
+    width: 28,
 
-    width:28,
-
-    backgroundColor:'#FF6B00',
-
+    backgroundColor: '#FF6B00',
   },
 
-
-
-  /*
-  ================================================
-  SECTION HEADER
-  ================================================
-  */
-
+  // ==========================================================
+  // SECTION HEADER
+  // ==========================================================
 
   sectionHeader: {
+    flexDirection: 'row',
 
-    flexDirection:'row',
+    justifyContent: 'space-between',
 
-    justifyContent:'space-between',
+    alignItems: 'center',
 
-    alignItems:'center',
+    marginHorizontal: 20,
 
-    marginHorizontal:20,
-
-    marginTop:32,
-
+    marginTop: 32,
   },
-
 
   sectionTitle: {
+    fontSize: 23,
 
-    fontSize:23,
+    fontWeight: '900',
 
-    fontWeight:'900',
-
-    color:'#101828',
-
+    color: '#101828',
   },
-
 
   viewAll: {
+    fontSize: 14,
 
-    fontSize:14,
+    fontWeight: '700',
 
-    fontWeight:'700',
-
-    color:'#FF6B00',
-
+    color: '#FF6B00',
   },
 
-
-
-  /*
-  ================================================
-  CATEGORY
-  ================================================
-  */
-
+  // ==========================================================
+  // CATEGORY
+  // ==========================================================
 
   categoryGrid: {
+    flexDirection: 'row',
 
-    flexDirection:'row',
+    flexWrap: 'wrap',
 
-    flexWrap:'wrap',
+    justifyContent: 'center',
 
-    justifyContent:'center',
-
-    marginTop:18,
-
+    marginTop: 18,
   },
-
 
   categoryCard: {
+    width: (width - 70) / 2,
 
-    width:(width - 70) / 2,
+    height: 135,
 
-    height:135,
+    margin: 8,
 
-    margin:8,
+    borderRadius: 26,
 
-    borderRadius:26,
+    justifyContent: 'center',
 
+    alignItems: 'center',
 
-    justifyContent:'center',
+    shadowColor: '#000',
 
-    alignItems:'center',
-
-
-    shadowColor:'#000',
-
-    shadowOffset:{
-      width:0,
-      height:5
+    shadowOffset: {
+      width: 0,
+      height: 5,
     },
 
-    shadowOpacity:0.15,
+    shadowOpacity: 0.15,
 
-    shadowRadius:10,
+    shadowRadius: 10,
 
-    elevation:6,
-
+    elevation: 6,
   },
-
 
   iconContainer: {
+    width: 64,
 
-    width:64,
+    height: 64,
 
-    height:64,
+    borderRadius: 32,
 
-    borderRadius:32,
+    backgroundColor: '#FFFFFF',
 
-    backgroundColor:'#FFFFFF',
+    justifyContent: 'center',
 
-    justifyContent:'center',
-
-    alignItems:'center',
-
+    alignItems: 'center',
   },
-
 
   categoryText: {
+    marginTop: 12,
 
-    marginTop:12,
+    fontSize: 16,
 
-    fontSize:16,
+    fontWeight: '800',
 
-    fontWeight:'800',
-
-    color:'#FFFFFF',
-
+    color: '#FFFFFF',
   },
 
-
-
-  /*
-  ================================================
-  FEATURE OFFER CARD
-  ================================================
-  */
-
+  // ==========================================================
+  // FEATURE OFFER CARD
+  // ==========================================================
 
   featureCard: {
+    height: 180,
 
-    height:180,
+    marginHorizontal: 20,
 
-    marginHorizontal:20,
+    marginTop: 25,
 
-    marginTop:25,
+    marginBottom: 30,
 
-    marginBottom:30,
+    borderRadius: 28,
 
-    borderRadius:28,
-
-    overflow:'hidden',
-
+    overflow: 'hidden',
   },
-
 
   featureImage: {
+    width: '100%',
 
-    width:'100%',
-
-    height:'100%',
-
+    height: '100%',
   },
-
 
   overlay: {
+    position: 'absolute',
 
-    position:'absolute',
+    left: 0,
 
-    left:0,
+    right: 0,
 
-    right:0,
+    top: 0,
 
-    top:0,
-
-    bottom:0,
-
+    bottom: 0,
   },
-
 
   featureContent: {
+    position: 'absolute',
 
-    position:'absolute',
+    left: 22,
 
-    left:22,
-
-    bottom:22,
-
+    bottom: 22,
   },
-
 
   featureTitle: {
+    fontSize: 24,
 
-    fontSize:24,
+    fontWeight: '900',
 
-    fontWeight:'900',
-
-    color:'#FFFFFF',
-
+    color: '#FFFFFF',
   },
-
 
   featureSubtitle: {
+    marginTop: 6,
 
-    marginTop:6,
+    fontSize: 14,
 
-    fontSize:14,
+    color: '#E5E7EB',
 
-    color:'#E5E7EB',
-
-    fontWeight:'500',
-
+    fontWeight: '500',
   },
 
-
-
-  /*
-  ================================================
-  LOADING
-  ================================================
-  */
-
+  // ==========================================================
+  // LOADING
+  // ==========================================================
 
   loader: {
+    flex: 1,
 
-    flex:1,
+    justifyContent: 'center',
 
-    justifyContent:'center',
-
-    alignItems:'center',
-
+    alignItems: 'center',
   },
-
 
   loadingText: {
+    marginTop: 15,
 
-    marginTop:15,
+    color: '#FFFFFF',
 
-    color:'#FFFFFF',
+    fontSize: 16,
 
-    fontSize:16,
-
-    fontWeight:'700',
-
+    fontWeight: '700',
   },
-
 
 });
