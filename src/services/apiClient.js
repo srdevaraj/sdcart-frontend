@@ -15,7 +15,9 @@ import { tokenStore } from './tokenStore';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 20000,
+  // Generous timeout: the Render free instance can take a while to wake up
+  // from a cold start before the first request completes.
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -47,7 +49,7 @@ async function refreshAccessToken() {
     const response = await axios.post(
       `${API_BASE_URL}/api/v1/auth/refresh`,
       { refreshToken },
-      { timeout: 15000 }
+      { timeout: 30000 }
     );
 
     const data = response.data?.data;
@@ -100,6 +102,22 @@ apiClient.interceptors.response.use(
 
     const original = error.config;
 
+    // Render cold start / flaky network: retry idempotent GET requests once
+    // when the server never responded (timeout or connection failure). Never
+    // retry mutations — they must not run twice.
+    const isNetworkError =
+      !error.response &&
+      (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK' || !error.code);
+    if (
+      isNetworkError &&
+      original &&
+      original.method === 'get' &&
+      !original._networkRetried
+    ) {
+      original._networkRetried = true;
+      return apiClient(original);
+    }
+
     // Only attempt a refresh for 401s that carry an Authorization header and
     // were not themselves the refresh call.
     const isAuthError =
@@ -147,9 +165,11 @@ export function normalizeError(error) {
   let message = 'Something went wrong. Please try again.';
 
   if (error.code === 'ECONNABORTED') {
-    message = 'The request timed out. Please check your connection and try again.';
+    message =
+      'The server is taking longer than expected to respond (it may be starting up). Please try again in a moment.';
   } else if (!error.response) {
-    message = 'Unable to reach the server. Please check your internet connection.';
+    message =
+      'Unable to reach the server. Please check your internet connection and try again.';
   } else if (status === 401) {
     message = 'Your session has expired. Please login again.';
   } else if (status === 403) {

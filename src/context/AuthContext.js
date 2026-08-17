@@ -44,7 +44,13 @@ export const AuthProvider = ({ children }) => {
             const data = await authService.refresh(refreshToken);
             if (mounted) setUserInfo(data.user);
           } catch (e) {
-            await tokenStore.clear();
+            // Only drop the session when the server actually rejected the
+            // refresh token (401/403). A transient network error / Render
+            // cold start must NOT be treated as an authentication failure —
+            // keep the tokens so the next launch can retry.
+            if (e?.isNormalized && (e.status === 401 || e.status === 403)) {
+              await tokenStore.clear();
+            }
           }
         }
       } catch (e) {
