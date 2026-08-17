@@ -17,17 +17,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { getProductById } from '../services/productService';
-import { addToCartAPI } from '../api/cartApi';
+import { normalizeProduct } from '../services/normalizers';
+import { discountPercent, formatPrice } from '../services/format';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 
 import clogo from '../../assets/clogo.png';
 
 const { width } = Dimensions.get('window');
 
 const IMAGE_HEIGHT = 360;
-
-const CLOUDINARY_BASE_URL =
-'https://res.cloudinary.com/<your-cloud-name>/image/upload/';
 
 export default function SelectedProduct({
     route,
@@ -43,9 +42,6 @@ export default function SelectedProduct({
     const [adding, setAdding] =
     useState(false);
 
-    const [favorite, setFavorite] =
-    useState(false);
-
     const [readMore, setReadMore] =
     useState(false);
 
@@ -56,6 +52,7 @@ export default function SelectedProduct({
     useRef(new Animated.Value(25)).current;
 
     const { addToCart } = useCart();
+    const { isInWishlist, toggleWishlist } = useWishlist();
 
     useEffect(() => {
 
@@ -86,20 +83,9 @@ export default function SelectedProduct({
             const data =
             await getProductById(id);
 
-            if(
-                data.imageUrl &&
-                !data.imageUrl.startsWith('http')
-            ){
-
-                data.imageUrl =
-                CLOUDINARY_BASE_URL +
-                data.imageUrl;
-
-            }
-
-            console.log("Fetched Product:", data);
-
-            setProduct(data);
+            setProduct(
+                normalizeProduct(data)
+            );
 
         }catch(e){
 
@@ -135,12 +121,22 @@ export default function SelectedProduct({
           console.log("Adding Product:", product);
           console.log("Product ID:", product.id);
 
-          await addToCartAPI(
+          const result =
+          await addToCart(
               product.id,
               1
           );
 
-          addToCart(product);
+          if(!result.success){
+
+              Alert.alert(
+                  "Error",
+                  result.message
+              );
+
+              return;
+
+          }
 
           Alert.alert(
               "Success",
@@ -264,26 +260,38 @@ export default function SelectedProduct({
 
             {/* Discount Badge */}
 
-            <LinearGradient
-                colors={['#EF4444', '#DC2626']}
-                style={styles.discountBadge}
-            >
-                <Text style={styles.discountText}>
-                    20% OFF
-                </Text>
-            </LinearGradient>
+            {discountPercent(product) > 0 && (
+                <LinearGradient
+                    colors={['#EF4444', '#DC2626']}
+                    style={styles.discountBadge}
+                >
+                    <Text style={styles.discountText}>
+                        {discountPercent(product)}% OFF
+                    </Text>
+                </LinearGradient>
+            )}
 
             {/* Wishlist */}
 
             <TouchableOpacity
                 activeOpacity={0.9}
                 style={styles.favoriteButton}
-                onPress={() => setFavorite(!favorite)}
+                onPress={async () => {
+                    const result =
+                    await toggleWishlist(product.id);
+
+                    if(!result.success){
+                        Alert.alert(
+                            'Wishlist',
+                            result.message
+                        );
+                    }
+                }}
             >
 
                 <MaterialCommunityIcons
                     name={
-                        favorite
+                        isInWishlist(product.id)
                             ? 'heart'
                             : 'heart-outline'
                     }
@@ -318,11 +326,11 @@ export default function SelectedProduct({
                 />
 
                 <Text style={styles.ratingText}>
-                    {product.ratings || 4.8}
+                    {product.rating || '4.5'}
                 </Text>
 
                 <Text style={styles.reviewText}>
-                    (248 Reviews)
+                    ({product.reviewCount || 0} Reviews)
                 </Text>
 
             </View>
@@ -332,18 +340,22 @@ export default function SelectedProduct({
             <View style={styles.priceRow}>
 
                 <Text style={styles.price}>
-                    ₹{product.price}
+                    {formatPrice(product.price)}
                 </Text>
 
-                <Text style={styles.oldPrice}>
-                    ₹{Math.round(product.price * 1.25)}
-                </Text>
-
-                <View style={styles.saveBadge}>
-                    <Text style={styles.saveText}>
-                        Save 20%
+                {product.actualPrice ? (
+                    <Text style={styles.oldPrice}>
+                        {formatPrice(product.actualPrice)}
                     </Text>
-                </View>
+                ) : null}
+
+                {discountPercent(product) > 0 && (
+                    <View style={styles.saveBadge}>
+                        <Text style={styles.saveText}>
+                            Save {discountPercent(product)}%
+                        </Text>
+                    </View>
+                )}
 
             </View>
 
@@ -535,19 +547,23 @@ export default function SelectedProduct({
 
             </View>
 
-            <View style={styles.specDivider} />
+            {(product.specifications || []).map((spec, index) => (
+                <React.Fragment key={`${spec.name}-${index}`}>
+                    <View style={styles.specDivider} />
 
-            <View style={styles.specRow}>
+                    <View style={styles.specRow}>
 
-                <Text style={styles.specLabel}>
-                    Seller
-                </Text>
+                        <Text style={styles.specLabel}>
+                            {spec.name}
+                        </Text>
 
-                <Text style={styles.specValue}>
-                    {product.seller || 'sdCart Store'}
-                </Text>
+                        <Text style={styles.specValue}>
+                            {spec.value}
+                        </Text>
 
-            </View>
+                    </View>
+                </React.Fragment>
+            ))}
 
             <View style={styles.specDivider} />
 
@@ -571,20 +587,6 @@ export default function SelectedProduct({
                     {product.stock > 0
                         ? `${product.stock} Available`
                         : 'Out of Stock'}
-                </Text>
-
-            </View>
-
-            <View style={styles.specDivider} />
-
-            <View style={styles.specRow}>
-
-                <Text style={styles.specLabel}>
-                    Warranty
-                </Text>
-
-                <Text style={styles.specValue}>
-                    1 Year Manufacturer Warranty
                 </Text>
 
             </View>
@@ -719,14 +721,36 @@ export default function SelectedProduct({
             <TouchableOpacity
                 activeOpacity={0.9}
                 style={styles.buyBtn}
-                onPress={() =>
+                onPress={async () => {
+
+                    if(!product?.id) return;
+
+                    const result =
+                    await addToCart(
+                        product.id,
+                        1
+                    );
+
+                    if(!result.success){
+
+                        Alert.alert(
+                            'Error',
+                            result.message
+                        );
+
+                        return;
+
+                    }
+
+                    // Orders are created from the cart by the backend, so
+                    // Buy Now adds the item and continues to checkout.
                     navigation.navigate(
-                        'OrderScreen',
+                        'DeliveryAddress',
                         {
-                            product,
+                            selectMode: true,
                         }
-                    )
-                }
+                    );
+                }}
             >
 
                 <MaterialCommunityIcons

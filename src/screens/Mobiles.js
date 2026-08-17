@@ -11,26 +11,20 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 
-import { addToCartAPI } from '../../src/api/cartApi';
+import { getProducts } from '../services/productService';
+import { normalizeProductPage } from '../services/normalizers';
+import { useCart } from '../context/CartContext';
 import clogo from '../../assets/clogo.png';
-
-const BASE_URL = 'https://sdcart-backend-1.onrender.com';
 
 const PAGE_SIZE = 20;
 
-const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 15000,
-  headers: {
-    Accept: 'application/json',
-  },
-});
+export default function Mobiles({ navigation, route }) {
+  // Category-driven screen (slug/title come from the route).
+  const { slug = 'electronics', title = 'Mobiles' } = route.params || {};
 
-export default function Mobiles({ navigation }) {
-  const CATEGORY_NAME = 'Mobile';
+  const { addToCart } = useCart();
 
   const { width } = useWindowDimensions();
 
@@ -75,21 +69,13 @@ export default function Mobiles({ navigation }) {
           setLoadingMore(true);
         }
 
-        const response = await api.get(
-          `/products/category/${CATEGORY_NAME}`,
-          {
-            params: {
-              page: pageNumber,
-              size: PAGE_SIZE,
-            },
-          }
-        );
+        const data = await getProducts({
+          category: slug,
+          page: pageNumber,
+          size: PAGE_SIZE,
+        });
 
-        const data = response?.data;
-
-        const newProducts = Array.isArray(data?.content)
-          ? data.content
-          : [];
+        const newProducts = normalizeProductPage(data)?.content || [];
 
         // ----------------------------------------------------
         // First page
@@ -284,7 +270,12 @@ export default function Mobiles({ navigation }) {
       try {
         setAddingToCartId(product.id);
 
-        await addToCartAPI(product.id, 1);
+        const result = await addToCart(product.id, 1);
+
+        if (!result.success) {
+          Alert.alert('Unable to add', result.message);
+          return;
+        }
 
         Alert.alert(
           'Added to cart',
@@ -754,7 +745,7 @@ export default function Mobiles({ navigation }) {
             <View style={styles.headerLeft}>
 
               <Text style={styles.title}>
-                Mobiles
+                {title}
               </Text>
 
               <Text style={styles.subtitle}>

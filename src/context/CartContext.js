@@ -1,133 +1,94 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// src/context/CartContext.js
+//
+// Cart state backed by the server cart (/api/v1/cart). The backend is
+// authoritative for quantities, prices and totals — the UI only mirrors the
+// CartResponse it receives.
 
-import { jwtDecode } from 'jwt-decode'; // ✅ Correct import
-
-import {
-  fetchCartItems,
-  addToCartAPI,
-  removeFromCartAPI,
-  clearCartAPI,
-} from '../api/cartApi';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import * as cartService from '../services/cartService';
+import { normalizeCart } from '../services/normalizers';
+import { getErrorMessage } from '../services/apiClient';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-  const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [cart, setCart] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Validate JWT token
-  const getValidToken = async () => {
+  const loadCart = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) {
-        console.warn('⚠️ No token found in AsyncStorage!');
-        return null;
-      }
-
-      const decoded = jwtDecode(token);
-      const now = Date.now() / 1000;
-
-      if (decoded.exp && decoded.exp < now) {
-        console.warn('⚠️ Token is expired');
-        await AsyncStorage.removeItem('userToken');
-        return null;
-      }
-
-      return token;
-    } catch (err) {
-      console.error('❌ Invalid token format:', err.message || err);
-      return null;
-    }
-  };
-
-  // Load cart items from API
-  const loadCart = async () => {
-    setLoading(true);
-    try {
-      const token = await getValidToken();
-      if (!token) throw new Error('Authentication token not available or expired');
-
-      const items = await fetchCartItems(token);
-      setCartItems(Array.isArray(items) ? items : []);
-    } catch (err) {
-      console.error('❌ Error loading cart:', err.message || err);
-      setCartItems([]);
+      const data = await cartService.getCart();
+      setCart(data);
+      return data;
+    } catch (error) {
+      // 401s are handled centrally; keep the previous cart state otherwise.
+      setCart((prev) => prev);
+      throw error;
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadCart();
   }, []);
 
-  // Add product to cart
-  const addToCart = async (productId) => {
+  useEffect(() => {
+    loadCart().catch(() => {
+      // Initial load failure (e.g. not logged in) is non-fatal.
+    });
+  }, [loadCart]);
+
+  const addToCart = useCallback(async (productPublicId, quantity = 1) => {
     try {
-      const token = await getValidToken();
-      if (!token) throw new Error('Authentication token not available or expired');
-
-      const newItem = await addToCartAPI(productId, token);
-      if (!newItem) throw new Error('Invalid cart item returned');
-
-      setCartItems((prevItems) => {
-        const exists = prevItems.find((item) => item.productId === newItem.productId);
-        return exists
-          ? prevItems.map((item) =>
-              item.productId === newItem.productId ? newItem : item
-            )
-          : [...prevItems, newItem];
-      });
-
-      return true;
-    } catch (err) {
-      console.error('❌ Add to cart failed:', err.message || err);
-      return false;
+      const data = await cartService.addToCart(productPublicId, quantity);
+      setCart(data);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, message: getErrorMessage(error) };
     }
+  }, []);
+
+  const updateQuantity = useCallback(async (itemPublicId, quantity) => {
+    try {
+      const data = await cartService.updateCartItem(itemPublicId, quantity);
+      setCart(data);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, message: getErrorMessage(error) };
+    }
+  }, []);
+
+  const removeFromCart = useCallback(async (itemPublicId) => {
+    try {
+      const data = await cartService.removeCartItem(itemPublicId);
+      setCart(data);
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: getErrorMessage(error) };
+    }
+  }, []);
+
+  const clearCart = useCallback(async () => {
+    try {
+      const data = await cartService.clearCart();
+      setCart(data);
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: getErrorMessage(error) };
+    }
+  }, []);
+
+  const value = {
+    cart: normalizeCart(cart),
+    cartItems: normalizeCart(cart)?.items || [],
+    totalQuantity: cart?.totalQuantity || 0,
+    totalAmount: cart?.totalAmount || 0,
+    loading,
+    addToCart,
+    updateQuantity,
+    removeFromCart,
+    clearCart,
+    reloadCart: loadCart,
   };
 
-  // Remove product from cart
-  const removeFromCart = async (cartItemId) => {
-    try {
-      const token = await getValidToken();
-      if (!token) throw new Error('Authentication token not available or expired');
-
-      await removeFromCartAPI(cartItemId, token);
-      setCartItems((prevItems) => prevItems.filter((i) => i.id !== cartItemId));
-    } catch (err) {
-      console.error('❌ Remove from cart failed:', err.message || err);
-    }
-  };
-
-  // Clear entire cart
-  const clearCart = async () => {
-    try {
-      const token = await getValidToken();
-      if (!token) throw new Error('Authentication token not available or expired');
-
-      await clearCartAPI(token);
-      setCartItems([]);
-    } catch (err) {
-      console.error('❌ Clear cart failed:', err.message || err);
-    }
-  };
-
-  return (
-    <CartContext.Provider
-      value={{
-        cartItems,
-        setCartItems,
-        loading,
-        addToCart,
-        removeFromCart,
-        clearCart,
-        reloadCart: loadCart,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
-  );
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
 export const useCart = () => useContext(CartContext);

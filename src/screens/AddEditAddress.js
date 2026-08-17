@@ -18,16 +18,15 @@ import {
   Animated,
 } from 'react-native';
 
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
-const API_URL = 'https://sdcart-backend-1.onrender.com';
+import {
+  createAddress,
+  updateAddress,
+} from '../services/addressService';
+import { getErrorMessage } from '../services/apiClient';
 
 const AddEditAddress = () => {
   const navigation = useNavigation();
@@ -35,56 +34,31 @@ const AddEditAddress = () => {
 
   const { address } = route.params || {};
 
-  // ---------------- FORM ----------------
+  // ---------------- FORM (backend AddressRequest contract) ----------------
 
-  const [fullName, setFullName] = useState(
-    address?.fullName || ''
+  const [label, setLabel] = useState(address?.label || 'Home');
+  const [recipientName, setRecipientName] = useState(
+    address?.recipientName || ''
+  );
+  const [phone, setPhone] = useState(address?.phone || '');
+  const [line1, setLine1] = useState(address?.line1 || '');
+  const [line2, setLine2] = useState(address?.line2 || '');
+  const [city, setCity] = useState(address?.city || '');
+  const [state, setState] = useState(address?.state || '');
+  const [postalCode, setPostalCode] = useState(
+    address?.postalCode || ''
+  );
+  const [country, setCountry] = useState(address?.country || 'India');
+  const [isDefault, setIsDefault] = useState(
+    Boolean(address?.isDefault)
   );
 
-  const [mobileNumber, setMobileNumber] = useState(
-    address?.mobileNumber || ''
-  );
-
-  const [altMobileNumber, setAltMobileNumber] = useState(
-    address?.altMobileNumber || ''
-  );
-
-  const [addressLine1, setAddressLine1] = useState(
-    address?.addressLine1 || ''
-  );
-
-  const [addressLine2, setAddressLine2] = useState(
-    address?.addressLine2 || ''
-  );
-
-  const [city, setCity] = useState(
-    address?.city || ''
-  );
-
-  const [state, setState] = useState(
-    address?.state || ''
-  );
-
-  const [pincode, setPincode] = useState(
-    address?.pincode || ''
-  );
-
-  const [landmark, setLandmark] = useState(
-    address?.landmark || ''
-  );
-
-  const [btnLoading, setBtnLoading] =
-    useState(null);
+  const [btnLoading, setBtnLoading] = useState(null);
 
   // ---------------- ANIMATION ----------------
 
-  const fade = useRef(
-    new Animated.Value(0)
-  ).current;
-
-  const slide = useRef(
-    new Animated.Value(40)
-  ).current;
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(40)).current;
 
   React.useEffect(() => {
     Animated.parallel([
@@ -105,89 +79,38 @@ const AddEditAddress = () => {
   // ---------------- SAVE ----------------
 
   const handleSave = async () => {
-
-    if (
-      !fullName ||
-      !mobileNumber ||
-      !addressLine1 ||
-      !city ||
-      !state ||
-      !pincode
-    ) {
-      Alert.alert(
-        'Validation',
-        'Please fill all required fields.'
-      );
+    if (!recipientName || !phone || !line1 || !city || !postalCode) {
+      Alert.alert('Validation', 'Please fill all required fields.');
       return;
     }
 
-    try {
+    const payload = {
+      label,
+      recipientName,
+      phone,
+      line1,
+      line2: line2 || undefined,
+      city,
+      state: state || undefined,
+      postalCode: postalCode || undefined,
+      country,
+      isDefault,
+    };
 
+    try {
       setBtnLoading('save');
 
-      const token =
-        await AsyncStorage.getItem(
-          'userToken'
-        );
-
-      const payload = {
-        fullName,
-        mobileNumber,
-        altMobileNumber,
-        addressLine1,
-        addressLine2,
-        city,
-        state,
-        pincode,
-        landmark,
-      };
-
       if (address) {
-
-        await axios.put(
-          `${API_URL}/api/address/${address.id}`,
-          payload,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        Alert.alert(
-          'Success',
-          'Address updated successfully.'
-        );
-
+        await updateAddress(address.publicId, payload);
+        Alert.alert('Success', 'Address updated successfully.');
       } else {
-
-        await axios.post(
-          `${API_URL}/api/address/add`,
-          payload,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        Alert.alert(
-          'Success',
-          'Address added successfully.'
-        );
+        await createAddress(payload);
+        Alert.alert('Success', 'Address added successfully.');
       }
 
       navigation.goBack();
-
     } catch (error) {
-
-      console.log(error);
-
-      Alert.alert(
-        'Error',
-        'Failed to save address.'
-      );
-
+      Alert.alert('Error', getErrorMessage(error));
     } finally {
       setBtnLoading(null);
     }
@@ -209,11 +132,7 @@ const AddEditAddress = () => {
     <View style={styles.inputContainer}>
 
       <View style={styles.iconContainer}>
-        <MaterialCommunityIcons
-          name={icon}
-          size={22}
-          color="#2563EB"
-        />
+        <MaterialCommunityIcons name={icon} size={22} color="#2563EB" />
       </View>
 
       <TextInput
@@ -231,25 +150,15 @@ const AddEditAddress = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      <StatusBar
-        backgroundColor="#2563EB"
-        barStyle="light-content"
-      />
+      <StatusBar backgroundColor="#2563EB" barStyle="light-content" />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={
-          Platform.OS === 'ios'
-            ? 'padding'
-            : undefined
-        }
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
 
         <LinearGradient
-          colors={[
-            '#2563EB',
-            '#4F46E5',
-          ]}
+          colors={['#2563EB', '#4F46E5']}
           style={styles.header}
         >
 
@@ -259,9 +168,7 @@ const AddEditAddress = () => {
           />
 
           <Text style={styles.headerTitle}>
-            {address
-              ? 'Update Address'
-              : 'Add Address'}
+            {address ? 'Update Address' : 'Add Address'}
           </Text>
 
           <Text style={styles.headerSubtitle}>
@@ -283,15 +190,14 @@ const AddEditAddress = () => {
         >
 
           <ScrollView
-            contentContainerStyle={
-              styles.container
-            }
+            contentContainerStyle={styles.container}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
 
             <View style={styles.formCard}>
-                            <View style={styles.titleRow}>
+
+              <View style={styles.titleRow}>
                 <MaterialCommunityIcons
                   name="map-marker-radius"
                   size={28}
@@ -308,40 +214,39 @@ const AddEditAddress = () => {
               </Text>
 
               <InputField
+                icon="home-outline"
+                placeholder="Label (Home / Office) *"
+                value={label}
+                onChangeText={setLabel}
+              />
+
+              <InputField
                 icon="account-outline"
-                placeholder="Full Name *"
-                value={fullName}
-                onChangeText={setFullName}
+                placeholder="Recipient Name *"
+                value={recipientName}
+                onChangeText={setRecipientName}
               />
 
               <InputField
                 icon="phone-outline"
                 placeholder="Mobile Number *"
-                value={mobileNumber}
-                onChangeText={setMobileNumber}
-                keyboardType="phone-pad"
-              />
-
-              <InputField
-                icon="phone-plus-outline"
-                placeholder="Alternate Mobile Number"
-                value={altMobileNumber}
-                onChangeText={setAltMobileNumber}
+                value={phone}
+                onChangeText={setPhone}
                 keyboardType="phone-pad"
               />
 
               <InputField
                 icon="home-city-outline"
                 placeholder="House / Flat / Building *"
-                value={addressLine1}
-                onChangeText={setAddressLine1}
+                value={line1}
+                onChangeText={setLine1}
               />
 
               <InputField
                 icon="road-variant"
                 placeholder="Street / Area / Village"
-                value={addressLine2}
-                onChangeText={setAddressLine2}
+                value={line2}
+                onChangeText={setLine2}
               />
 
               <InputField
@@ -353,7 +258,7 @@ const AddEditAddress = () => {
 
               <InputField
                 icon="map-outline"
-                placeholder="State *"
+                placeholder="State"
                 value={state}
                 onChangeText={setState}
               />
@@ -361,17 +266,41 @@ const AddEditAddress = () => {
               <InputField
                 icon="mailbox-outline"
                 placeholder="Pincode *"
-                value={pincode}
-                onChangeText={setPincode}
+                value={postalCode}
+                onChangeText={setPostalCode}
                 keyboardType="number-pad"
               />
 
               <InputField
-                icon="map-marker-star-outline"
-                placeholder="Landmark (Optional)"
-                value={landmark}
-                onChangeText={setLandmark}
+                icon="earth"
+                placeholder="Country"
+                value={country}
+                onChangeText={setCountry}
               />
+
+              {/* Default address toggle */}
+
+              <TouchableOpacity
+                style={styles.defaultRow}
+                onPress={() => setIsDefault(!isDefault)}
+                activeOpacity={0.8}
+              >
+
+                <MaterialCommunityIcons
+                  name={
+                    isDefault
+                      ? 'checkbox-marked-circle'
+                      : 'checkbox-blank-circle-outline'
+                  }
+                  size={24}
+                  color={isDefault ? '#16A34A' : '#94A3B8'}
+                />
+
+                <Text style={styles.defaultText}>
+                  Set as default address
+                </Text>
+
+              </TouchableOpacity>
 
               {/* Save Button */}
 
@@ -382,25 +311,17 @@ const AddEditAddress = () => {
                 disabled={btnLoading === 'save'}
               >
                 {btnLoading === 'save' ? (
-                  <ActivityIndicator
-                    color="#fff"
-                  />
+                  <ActivityIndicator color="#fff" />
                 ) : (
                   <>
                     <MaterialCommunityIcons
-                      name={
-                        address
-                          ? 'content-save-edit'
-                          : 'content-save'
-                      }
+                      name={address ? 'content-save-edit' : 'content-save'}
                       size={22}
                       color="#fff"
                     />
 
                     <Text style={styles.saveText}>
-                      {address
-                        ? 'Update Address'
-                        : 'Save Address'}
+                      {address ? 'Update Address' : 'Save Address'}
                     </Text>
                   </>
                 )}
@@ -419,9 +340,7 @@ const AddEditAddress = () => {
                   color="#64748B"
                 />
 
-                <Text style={styles.cancelText}>
-                  Cancel
-                </Text>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
 
             </View>
@@ -437,6 +356,7 @@ const AddEditAddress = () => {
     </SafeAreaView>
   );
 };
+
 const styles = StyleSheet.create({
 
   safeArea: {
@@ -566,6 +486,22 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
 
+  /* ---------------- Default toggle ---------------- */
+
+  defaultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginBottom: 6,
+  },
+
+  defaultText: {
+    marginLeft: 10,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#334155',
+  },
+
   /* ---------------- Save Button ---------------- */
 
   saveButton: {
@@ -610,7 +546,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
 
     borderWidth: 1.5,
-
     borderColor: '#CBD5E1',
 
     justifyContent: 'center',
@@ -627,9 +562,9 @@ const styles = StyleSheet.create({
     color: '#64748B',
 
     fontWeight: '700',
-
     fontSize: 16,
   },
 
 });
+
 export default AddEditAddress;

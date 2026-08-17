@@ -12,10 +12,9 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import axios from 'axios';
 
-const API_BASE_URL = 'https://sdcart-backend-1.onrender.com';
+import { useAuth } from '../context/AuthContext';
+import { getErrorMessage } from '../services/apiClient';
 
 export default function RegisterScreen({ navigation }) {
 
@@ -32,12 +31,8 @@ export default function RegisterScreen({ navigation }) {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
 
-    // Store DOB as Date internally
-    const [dob, setDob] = useState(null);
-
     const [email, setEmail] = useState('');
     const [mobile, setMobile] = useState('');
-    const [altMobile, setAltMobile] = useState('');
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -47,79 +42,8 @@ export default function RegisterScreen({ navigation }) {
     // ============================================================
 
     const [loading, setLoading] = useState(false);
-    const [showDatePicker, setShowDatePicker] = useState(false);
 
-    // ============================================================
-    // DATE FORMAT
-    // ============================================================
-
-    const formatDateForBackend = (date) => {
-
-        if (!date) {
-            return '';
-        }
-
-        const year = date.getFullYear();
-
-        const month = String(
-            date.getMonth() + 1
-        ).padStart(2, '0');
-
-        const day = String(
-            date.getDate()
-        ).padStart(2, '0');
-
-        return `${year}-${month}-${day}`;
-    };
-
-    const formatDateForDisplay = (date) => {
-
-        if (!date) {
-            return '';
-        }
-
-        const day = String(
-            date.getDate()
-        ).padStart(2, '0');
-
-        const month = String(
-            date.getMonth() + 1
-        ).padStart(2, '0');
-
-        const year = date.getFullYear();
-
-        return `${day}/${month}/${year}`;
-    };
-
-    // ============================================================
-    // DATE PICKER
-    // ============================================================
-
-    const handleDateChange = (event, selectedDate) => {
-
-        // Android closes picker automatically
-        if (Platform.OS === 'android') {
-            setShowDatePicker(false);
-        }
-
-        // User cancelled picker
-        if (event?.type === 'dismissed') {
-            return;
-        }
-
-        if (selectedDate) {
-            setDob(selectedDate);
-        }
-    };
-
-    const openDatePicker = () => {
-
-        if (loading) {
-            return;
-        }
-
-        setShowDatePicker(true);
-    };
+    const { register } = useAuth();
 
     // ============================================================
     // VALIDATION - STEP 1
@@ -128,26 +52,12 @@ export default function RegisterScreen({ navigation }) {
     const validateStep1 = () => {
 
         if (!firstName.trim()) {
-            Alert.alert(
-                'Required',
-                'Please enter your first name.'
-            );
+            Alert.alert('Required', 'Please enter your first name.');
             return false;
         }
 
         if (!lastName.trim()) {
-            Alert.alert(
-                'Required',
-                'Please enter your last name.'
-            );
-            return false;
-        }
-
-        if (!dob) {
-            Alert.alert(
-                'Required',
-                'Please select your date of birth.'
-            );
+            Alert.alert('Required', 'Please enter your last name.');
             return false;
         }
 
@@ -160,51 +70,27 @@ export default function RegisterScreen({ navigation }) {
 
     const validateStep2 = () => {
 
-        const emailRegex =
-            /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$/;
+        const emailRegex = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$/;
 
         if (!email.trim()) {
-            Alert.alert(
-                'Required',
-                'Please enter your email address.'
-            );
+            Alert.alert('Required', 'Please enter your email address.');
             return false;
         }
 
         if (!emailRegex.test(email.trim())) {
-            Alert.alert(
-                'Invalid Email',
-                'Please enter a valid email address.'
-            );
+            Alert.alert('Invalid Email', 'Please enter a valid email address.');
+            return false;
+        }
+
+        if (!mobile.trim()) {
+            Alert.alert('Required', 'Please enter your mobile number.');
             return false;
         }
 
         const mobileRegex = /^[0-9]{10}$/;
 
-        if (!mobile.trim()) {
-            Alert.alert(
-                'Required',
-                'Please enter your mobile number.'
-            );
-            return false;
-        }
-
         if (!mobileRegex.test(mobile.trim())) {
-            Alert.alert(
-                'Invalid Mobile',
-                'Please enter a valid 10-digit mobile number.'
-            );
-            return false;
-        }
-
-        if (
-            altMobile.trim() &&
-            !mobileRegex.test(altMobile.trim())
-        ) {
-            Alert.alert(
-                'Invalid Alternate Mobile',
-                'Please enter a valid 10-digit alternate mobile number.'
-            );
+            Alert.alert('Invalid Mobile', 'Please enter a valid 10-digit mobile number.');
             return false;
         }
 
@@ -218,34 +104,23 @@ export default function RegisterScreen({ navigation }) {
     const validateStep3 = () => {
 
         if (!password) {
-            Alert.alert(
-                'Required',
-                'Please enter a password.'
-            );
+            Alert.alert('Required', 'Please enter a password.');
             return false;
         }
 
-        if (password.length < 6) {
-            Alert.alert(
-                'Weak Password',
-                'Password must contain at least 6 characters.'
-            );
+        // Backend requires at least 8 characters (RegisterRequest).
+        if (password.length < 8) {
+            Alert.alert('Weak Password', 'Password must contain at least 8 characters.');
             return false;
         }
 
         if (!confirmPassword) {
-            Alert.alert(
-                'Required',
-                'Please confirm your password.'
-            );
+            Alert.alert('Required', 'Please confirm your password.');
             return false;
         }
 
         if (password !== confirmPassword) {
-            Alert.alert(
-                'Password Mismatch',
-                'Passwords do not match.'
-            );
+            Alert.alert('Password Mismatch', 'Passwords do not match.');
             return false;
         }
 
@@ -284,8 +159,6 @@ export default function RegisterScreen({ navigation }) {
                 return;
             }
 
-            // OTP temporarily disabled.
-            // Direct registration.
             registerUser();
         }
     };
@@ -304,120 +177,31 @@ export default function RegisterScreen({ navigation }) {
 
             setLoading(true);
 
-            const formattedDob =
-                formatDateForBackend(dob);
-
-            const registrationData = {
+            // Matches the backend RegisterRequest contract:
+            // { firstName, lastName, email, password, phone }
+            await register({
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
-
-                // Backend receives:
-                // YYYY-MM-DD
-                dob: formattedDob,
-
                 email: email.trim().toLowerCase(),
-                mobile: mobile.trim(),
-                altMobile: altMobile.trim(),
-                password: password,
-            };
+                password,
+                phone: mobile.trim(),
+            });
 
-            console.log(
-                'Registering user:',
-                {
-                    ...registrationData,
-                    password: '********',
-                }
-            );
-
-            const response = await axios.post(
-                `${API_BASE_URL}/api/auth/register`,
-                registrationData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    timeout: 30000,
-                }
-            );
-
-            console.log(
-                'Registration response:',
-                response.data
-            );
-
-            if (
-                response.status === 200 ||
-                response.status === 201
-            ) {
-
-                Alert.alert(
-                    'Registration Successful',
-                    'Your account has been created successfully. Please login to continue.',
-                    [
-                        {
-                            text: 'Login',
-                            onPress: () => {
-                                navigation.replace('Login');
-                            },
-                        },
-                    ],
-                    {
-                        cancelable: false,
-                    }
-                );
-
-                return;
-            }
-
+            // Registration returns a token pair, so the user is logged in and
+            // the navigator switches to the main tabs automatically.
             Alert.alert(
-                'Registration Failed',
-                'Unable to create your account. Please try again.'
+                'Registration Successful',
+                'Welcome to sdCart! Your account has been created.',
+                [
+                    {
+                        text: 'Continue Shopping',
+                    },
+                ]
             );
 
         } catch (error) {
 
-            console.log(
-                'Registration error:',
-                error?.response?.data ||
-                error?.message
-            );
-
-            let message =
-                'Unable to create your account. Please try again later.';
-
-            if (error?.response?.status === 400) {
-
-                message =
-                    error?.response?.data?.message ||
-                    'Invalid registration details.';
-            }
-
-            else if (error?.response?.status === 409) {
-
-                message =
-                    error?.response?.data?.message ||
-                    'An account with this email already exists.';
-            }
-
-            else if (error?.response?.status === 500) {
-
-                message =
-                    error?.response?.data?.message ||
-                    'Server error. Please try again later.';
-            }
-
-            else if (
-                error?.message === 'Network Error'
-            ) {
-
-                message =
-                    'Unable to connect to the server. Please check your internet connection.';
-            }
-
-            Alert.alert(
-                'Registration Failed',
-                message
-            );
+            Alert.alert('Registration Failed', getErrorMessage(error));
 
         } finally {
 
@@ -473,17 +257,11 @@ export default function RegisterScreen({ navigation }) {
 
             <KeyboardAvoidingView
                 style={styles.container}
-                behavior={
-                    Platform.OS === 'ios'
-                        ? 'padding'
-                        : undefined
-                }
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
 
                 <ScrollView
-                    contentContainerStyle={
-                        styles.scrollContainer
-                    }
+                    contentContainerStyle={styles.scrollContainer}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
@@ -498,9 +276,7 @@ export default function RegisterScreen({ navigation }) {
                             disabled={loading}
                         >
 
-                            <Text style={styles.backIcon}>
-                                ‹
-                            </Text>
+                            <Text style={styles.backIcon}>‹</Text>
 
                         </TouchableOpacity>
 
@@ -529,16 +305,14 @@ export default function RegisterScreen({ navigation }) {
                                 <View
                                     style={[
                                         styles.progressStep,
-                                        item <= step &&
-                                        styles.progressStepActive,
+                                        item <= step && styles.progressStepActive,
                                     ]}
                                 >
 
                                     <Text
                                         style={[
                                             styles.progressNumber,
-                                            item <= step &&
-                                            styles.progressNumberActive,
+                                            item <= step && styles.progressNumberActive,
                                         ]}
                                     >
                                         {item}
@@ -551,8 +325,7 @@ export default function RegisterScreen({ navigation }) {
                                     <View
                                         style={[
                                             styles.progressLine,
-                                            item < step &&
-                                            styles.progressLineActive,
+                                            item < step && styles.progressLineActive,
                                         ]}
                                     />
 
@@ -596,73 +369,6 @@ export default function RegisterScreen({ navigation }) {
                                 placeholder="Enter your last name"
                             />
 
-                            {/* DOB */}
-
-                            <View style={styles.inputContainer}>
-
-                                <Text style={styles.inputLabel}>
-                                    Date of Birth
-                                </Text>
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles.dateInput,
-                                        !dob &&
-                                        styles.dateInputPlaceholder,
-                                    ]}
-                                    onPress={openDatePicker}
-                                    activeOpacity={0.8}
-                                >
-
-                                    <Text
-                                        style={[
-                                            styles.dateText,
-                                            !dob &&
-                                            styles.datePlaceholder,
-                                        ]}
-                                    >
-                                        {dob
-                                            ? formatDateForDisplay(dob)
-                                            : 'Select your date of birth'}
-                                    </Text>
-
-                                    <Text style={styles.calendarIcon}>
-                                        📅
-                                    </Text>
-
-                                </TouchableOpacity>
-
-                                {/* DATE PICKER */}
-
-                                {showDatePicker && (
-
-                                    <DateTimePicker
-                                        value={
-                                            dob ||
-                                            new Date(
-                                                new Date().getFullYear() - 18,
-                                                0,
-                                                1
-                                            )
-                                        }
-                                        mode="date"
-                                        display={
-                                            Platform.OS === 'ios'
-                                                ? 'spinner'
-                                                : 'default'
-                                        }
-                                        maximumDate={
-                                            new Date()
-                                        }
-                                        onChange={
-                                            handleDateChange
-                                        }
-                                    />
-
-                                )}
-
-                            </View>
-
                         </View>
                     )}
 
@@ -692,15 +398,6 @@ export default function RegisterScreen({ navigation }) {
                                 maxLength={10}
                             />
 
-                            <InputField
-                                label="Alternate Mobile"
-                                value={altMobile}
-                                onChangeText={setAltMobile}
-                                placeholder="Optional"
-                                keyboardType="phone-pad"
-                                maxLength={10}
-                            />
-
                         </View>
                     )}
 
@@ -723,36 +420,22 @@ export default function RegisterScreen({ navigation }) {
                             <InputField
                                 label="Confirm Password"
                                 value={confirmPassword}
-                                onChangeText={
-                                    setConfirmPassword
-                                }
+                                onChangeText={setConfirmPassword}
                                 placeholder="Re-enter your password"
                                 secureTextEntry
                             />
 
                             <View style={styles.passwordInfo}>
 
-                                <Text
-                                    style={
-                                        styles.passwordInfoTitle
-                                    }
-                                >
+                                <Text style={styles.passwordInfoTitle}>
                                     Password requirements
                                 </Text>
 
-                                <Text
-                                    style={
-                                        styles.passwordInfoText
-                                    }
-                                >
-                                    • At least 6 characters
+                                <Text style={styles.passwordInfoText}>
+                                    • At least 8 characters
                                 </Text>
 
-                                <Text
-                                    style={
-                                        styles.passwordInfoText
-                                    }
-                                >
+                                <Text style={styles.passwordInfoText}>
                                     • Passwords must match
                                 </Text>
 
@@ -766,8 +449,7 @@ export default function RegisterScreen({ navigation }) {
                     <TouchableOpacity
                         style={[
                             styles.primaryButton,
-                            loading &&
-                            styles.primaryButtonDisabled,
+                            loading && styles.primaryButtonDisabled,
                         ]}
                         onPress={handleNext}
                         disabled={loading}
@@ -776,11 +458,7 @@ export default function RegisterScreen({ navigation }) {
 
                         {loading ? (
 
-                            <View
-                                style={
-                                    styles.loadingContainer
-                                }
-                            >
+                            <View style={styles.loadingContainer}>
 
                                 <ActivityIndicator
                                     size="small"
@@ -796,9 +474,7 @@ export default function RegisterScreen({ navigation }) {
                         ) : (
 
                             <Text style={styles.buttonText}>
-                                {step === 3
-                                    ? 'Create Account'
-                                    : 'Continue'}
+                                {step === 3 ? 'Create Account' : 'Continue'}
                             </Text>
 
                         )}
@@ -814,9 +490,7 @@ export default function RegisterScreen({ navigation }) {
                         </Text>
 
                         <TouchableOpacity
-                            onPress={() =>
-                                navigation.navigate('Login')
-                            }
+                            onPress={() => navigation.navigate('Login')}
                             disabled={loading}
                         >
 
@@ -1021,41 +695,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         fontSize: 15,
         color: '#111827',
-    },
-
-    // ============================================================
-    // DOB INPUT
-    // ============================================================
-
-    dateInput: {
-        height: 54,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 14,
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-
-    dateInputPlaceholder: {
-        borderColor: '#E5E7EB',
-    },
-
-    dateText: {
-        flex: 1,
-        fontSize: 15,
-        color: '#111827',
-    },
-
-    datePlaceholder: {
-        color: '#9CA3AF',
-    },
-
-    calendarIcon: {
-        fontSize: 20,
-        marginLeft: 10,
     },
 
     passwordInfo: {

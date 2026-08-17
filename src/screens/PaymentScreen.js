@@ -1,80 +1,123 @@
-import React, { useRef, useState } from 'react';
-import { View, Alert, ActivityIndicator, StyleSheet } from 'react-native';
-import { WebView } from 'react-native-webview';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  Alert,
+  ActivityIndicator,
+  StyleSheet,
+  Image,
+  StatusBar,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
+import { payOrder } from '../services/paymentService';
+import { getErrorMessage } from '../services/apiClient';
+
+/**
+ * Processes payment for the just-created order. Payment verification and
+ * idempotency live on the backend (POST /api/v1/payments/orders/{id}/pay);
+ * this screen only displays progress and the backend-confirmed result.
+ */
 export default function PaymentScreen({ route, navigation }) {
-  const { orderId, amount, product, user } = route.params; 
-  const webviewRef = useRef(null);
-  const [loading, setLoading] = useState(true);
+  const { orderPublicId } = route.params || {};
+  const attempted = useRef(false);
 
-  if (!product || !amount || !orderId) {
-    Alert.alert("Error", "Invalid payment data.");
-    navigation.goBack();
-    return null;
-  }
+  const [phase, setPhase] = useState('processing');
 
-    const razorpayHtml = `
-    <html>
-      <body>
-        <script>
-          // Simulate payment response after 2s
-          setTimeout(function(){
-            const mockResponse = {
-              razorpay_payment_id: "pay_mock_12345",
-              razorpay_order_id: ${JSON.stringify(orderId)},
-              razorpay_signature: "mock_signature"
-            };
-            window.ReactNativeWebView.postMessage(JSON.stringify(mockResponse));
-          }, 2000);
-        </script>
-        <h2 style="text-align:center;margin-top:50%;">Simulating Payment...</h2>
-      </body>
-    </html>
-    `;
-
-  const handleMessage = (event) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      navigation.replace('PaymentResult', { paymentResponse: data, product });
-    } catch (err) {
-      console.error("Payment parse error:", err);
-      Alert.alert("Payment Failed", "Unable to process payment response.");
+  useEffect(() => {
+    if (attempted.current || !orderPublicId) {
+      return;
     }
-  };
+    attempted.current = true;
+
+    const process = async () => {
+      try {
+        const payment = await payOrder(orderPublicId);
+        setPhase('success');
+        navigation.replace('PaymentResult', {
+          orderPublicId,
+          payment,
+        });
+      } catch (error) {
+        setPhase('failed');
+        Alert.alert(
+          'Payment Failed',
+          getErrorMessage(error),
+          [{ text: 'Back', onPress: () => navigation.goBack() }]
+        );
+      }
+    };
+
+    process();
+  }, [orderPublicId, navigation]);
 
   return (
-    <View style={{ flex: 1 }}>
-      {loading && (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#53a20e" />
-        </View>
-      )}
-      <WebView
-        ref={webviewRef}
-        originWhitelist={['*']}
-        source={{ html: razorpayHtml }}
-        onMessage={handleMessage}
-        onLoadStart={() => setLoading(true)}
-        onLoadEnd={() => setLoading(false)}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}           // ✅ enable DOM storage
-        startInLoadingState={true}         // ✅ default loader
-        mixedContentMode="compatibility"   // ✅ allow mixed content
-        allowFileAccess={true}             // ✅ allow file access
-        allowUniversalAccessFromFileURLs={true}  // ✅ allow JS from local HTML
-        onShouldStartLoadWithRequest={(request) => true}  // ✅ allow all requests
+    <LinearGradient
+      colors={['#141E30', '#243B55']}
+      style={styles.container}
+    >
+      <StatusBar barStyle="light-content" />
+
+      <Image
+        source={require('../../assets/clogo.png')}
+        style={styles.logo}
       />
-    </View>
+
+      <View style={styles.spinnerWrap}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
+
+      <Text style={styles.title}>Processing Payment</Text>
+
+      <View style={styles.secureRow}>
+        <Ionicons name="lock-closed" size={14} color="#94A3B8" />
+        <Text style={styles.subtitle}>
+          Please wait while we securely confirm your payment...
+        </Text>
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  loader: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+  container: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white', // optional: overlay background
-    zIndex: 10,
+    paddingHorizontal: 30,
+  },
+
+  logo: {
+    width: 90,
+    height: 90,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    marginBottom: 30,
+  },
+
+  spinnerWrap: {
+    marginBottom: 20,
+  },
+
+  title: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+
+  secureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    maxWidth: 260,
+  },
+
+  subtitle: {
+    color: '#94A3B8',
+    fontSize: 13,
+    lineHeight: 19,
+    marginLeft: 6,
+    textAlign: 'center',
   },
 });

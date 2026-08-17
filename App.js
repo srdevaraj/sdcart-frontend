@@ -32,6 +32,10 @@ import {
   useAuth,
 } from './src/context/AuthContext';
 
+import {
+  WishlistProvider,
+} from './src/context/WishlistContext';
+
 
 // --------------------------------------------------
 // Screens
@@ -46,8 +50,11 @@ import OrderScreen from './src/screens/OrderScreen';
 import PaymentScreen from './src/screens/PaymentScreen';
 import PaymentResultScreen from './src/screens/PaymentResultScreen';
 
-import AdminScreen from './src/screens/AdminScreen';
 import Admin from './src/screens/Admin';
+
+import WishlistScreen from './src/screens/WishlistScreen';
+import OrdersScreen from './src/screens/OrdersScreen';
+import OrderDetailsScreen from './src/screens/OrderDetailsScreen';
 
 import CategoryModal from './src/screens/CategoryModal';
 
@@ -400,16 +407,42 @@ function AppNavigator() {
               ======================================== */}
 
           <Stack.Screen
-            name="AdminScreen"
-            component={AdminScreen}
+            name="Admin"
+            component={Admin}
+            options={{
+              headerShown: false,
+            }}
+          />
+
+
+          {/* ========================================
+              WISHLIST
+              ======================================== */}
+
+          <Stack.Screen
+            name="Wishlist"
+            component={WishlistScreen}
+            options={{
+              headerShown: false,
+            }}
+          />
+
+
+          {/* ========================================
+              ORDERS
+              ======================================== */}
+
+          <Stack.Screen
+            name="Orders"
+            component={OrdersScreen}
             options={{
               headerShown: false,
             }}
           />
 
           <Stack.Screen
-            name="Admin"
-            component={Admin}
+            name="OrderDetails"
+            component={OrderDetailsScreen}
             options={{
               headerShown: false,
             }}
@@ -517,27 +550,29 @@ function AppNavigator() {
 export default function App() {
   return (
     <AuthProvider>
-      <CartProvider>
+      <WishlistProvider>
+        <CartProvider>
 
-        <SafeAreaView
-          style={{
-            flex: 1,
-            backgroundColor: 'white',
-          }}
-        >
+          <SafeAreaView
+            style={{
+              flex: 1,
+              backgroundColor: 'white',
+            }}
+          >
 
-          <StatusBar
-            barStyle="dark-content"
-            backgroundColor="white"
-          />
+            <StatusBar
+              barStyle="dark-content"
+              backgroundColor="white"
+            />
 
-          <NavigationContainer>
-            <AppNavigator />
-          </NavigationContainer>
+            <NavigationContainer>
+              <AppNavigator />
+            </NavigationContainer>
 
-        </SafeAreaView>
+          </SafeAreaView>
 
-      </CartProvider>
+        </CartProvider>
+      </WishlistProvider>
     </AuthProvider>
   );
 }

@@ -1,104 +1,58 @@
 // src/services/productService.js
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-
-const API_BASE_URL = 'https://sdcart-backend-1.onrender.com';
+import { apiClient } from './apiClient';
 
 /**
- * Get headers including JWT token from AsyncStorage
+ * List products (public catalog). Supports the backend filter surface:
+ * category slug, brand slug, free-text query, price range, stock and featured.
+ *
+ * Returns the PageResponse payload: { content, page, size, totalElements, ... }
  */
-const getAuthHeaders = async () => {
-  try {
-    const token = await AsyncStorage.getItem('userToken');
+export async function getProducts({
+  category,
+  brand,
+  q,
+  minPrice,
+  maxPrice,
+  inStock,
+  featured,
+  page = 0,
+  size = 20,
+  sort,
+  signal,
+} = {}) {
+  const params = {
+    page,
+    size,
+  };
+  if (category) params.category = category;
+  if (brand) params.brand = brand;
+  if (q) params.q = q;
+  if (minPrice != null) params.minPrice = minPrice;
+  if (maxPrice != null) params.maxPrice = maxPrice;
+  if (inStock != null) params.inStock = inStock;
+  if (featured != null) params.featured = featured;
+  if (sort) params.sort = sort;
 
-    if (!token || token === 'null' || token === 'undefined') {
-      console.warn('⚠️ No valid token found in AsyncStorage');
-      throw new Error('Authentication token not available');
-    }
+  const response = await apiClient.get('/api/v1/products', { params, signal });
+  return response.data?.data;
+}
 
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    };
-  } catch (error) {
-    console.error('Error retrieving token from AsyncStorage:', error);
-    throw error;
+/**
+ * Fetch full product details by public id.
+ */
+export async function getProductById(publicId) {
+  const response = await apiClient.get(`/api/v1/products/${publicId}`);
+  return response.data?.data;
+}
+
+/**
+ * Convenience: primary image URL of a product response, or null.
+ */
+export function primaryImage(product) {
+  if (!product) return null;
+  if (Array.isArray(product.images)) {
+    const primary = product.images.find((img) => img.primary);
+    return (primary || product.images[0])?.imageUrl || null;
   }
-};
-
-/**
- * Fetch all products (lightweight list: id, name, price)
- */
-/**
- * Fetch products with pagination
- */
-export const getAllProducts = async (page = 0, size = 25) => {
-  try {
-    const res = await fetch(
-      `${API_BASE_URL}/products/light?page=${page}&size=${size}`,
-      {
-        method: "GET",
-        headers: await getAuthHeaders(),
-      }
-    );
-
-    if (!res.ok) {
-      throw new Error(`Error ${res.status}: ${res.statusText}`);
-    }
-
-    return await res.json();
-  } catch (error) {
-    console.error("getAllProducts failed:", error.message);
-    throw error;
-  }
-};
-
-/**
- * Fetch product image (base64) by product ID
- */
-export const getProductImageById = async (id) => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/products/product/${id}/image`, {
-      method: 'GET',
-      headers: await getAuthHeaders(),
-    });
-
-    if (!res.ok) {
-      console.error(`Image fetch failed with status ${res.status}`);
-      return null;
-    }
-
-    return await res.text(); // returns base64 string
-  } catch (error) {
-    console.error(`getProductImageById failed for ID ${id}:`, error.message);
-    return null;
-  }
-};
-
-/**
- * Fetch full product details by product ID
- */
-export const getProductById = async (id) => {
-  try {
-    const headers = await getAuthHeaders();
-    console.log(`Fetching product ID ${id} with headers:`, headers);
-
-    const res = await fetch(`${API_BASE_URL}/products/product/${id}`, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('Backend response error:', errText);
-      throw new Error(`Failed to fetch product with ID ${id}`);
-    }
-
-    const data = await res.json();
-    console.log('Product fetched successfully:', data);
-    return data;
-  } catch (error) {
-    console.error('getProductById failed:', error.message);
-    throw error;
-  }
-};
+  return product.imageUrl || null;
+}

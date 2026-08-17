@@ -12,10 +12,9 @@ import {
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-
-const API_BASE_URL = 'https://sdcart-backend-1.onrender.com';
+import { getMe } from '../services/userService';
+import { getAddresses } from '../services/addressService';
+import { getErrorMessage } from '../services/apiClient';
 
 export default function AccountInfoScreen() {
   const [user, setUser] = useState(null);
@@ -28,49 +27,19 @@ export default function AccountInfoScreen() {
     try {
       setError(null);
 
-      const token = await AsyncStorage.getItem('userToken');
+      const [userData, addressList] = await Promise.all([
+        getMe(),
+        getAddresses(),
+      ]);
 
-      if (!token) {
-        throw new Error('User not authenticated');
-      }
-
-      const userResponse = await axios.get(
-        `${API_BASE_URL}/api/user/userinfo`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      setUser(userData);
+      setAddress(
+        Array.isArray(addressList) && addressList.length > 0
+          ? addressList.find((a) => a.isDefault) || addressList[0]
+          : null
       );
-
-      const addressResponse = await axios.get(
-        `${API_BASE_URL}/api/address`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      setUser(userResponse.data.user || userResponse.data);
-
-      if (Array.isArray(addressResponse.data)) {
-        setAddress(
-          addressResponse.data.length > 0
-            ? addressResponse.data[0]
-            : null
-        );
-      } else {
-        setAddress(addressResponse.data || null);
-      }
     } catch (err) {
-      console.log(err);
-
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'Something went wrong'
-      );
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -248,47 +217,7 @@ export default function AccountInfoScreen() {
               </Text>
 
               <Text style={styles.infoValue}>
-                {user?.mobile || '-'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <MaterialCommunityIcons
-              name="phone-plus-outline"
-              size={22}
-              color="#6b7280"
-            />
-
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>
-                Alternate Mobile
-              </Text>
-
-              <Text style={styles.infoValue}>
-                {user?.altMobile || '-'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <MaterialCommunityIcons
-              name="calendar-month-outline"
-              size={22}
-              color="#6b7280"
-            />
-
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>
-                Date of Birth
-              </Text>
-
-              <Text style={styles.infoValue}>
-                {user?.dob || '-'}
+                {user?.phone || '-'}
               </Text>
             </View>
           </View>
@@ -327,7 +256,7 @@ export default function AccountInfoScreen() {
                   </Text>
 
                   <Text style={styles.infoValue}>
-                    {address.fullName}
+                    {address.recipientName}
                   </Text>
                 </View>
               </View>
@@ -347,34 +276,10 @@ export default function AccountInfoScreen() {
                   </Text>
 
                   <Text style={styles.infoValue}>
-                    {address.mobileNumber}
+                    {address.phone}
                   </Text>
                 </View>
               </View>
-
-              {address.altMobileNumber ? (
-                <>
-                  <View style={styles.divider} />
-
-                  <View style={styles.infoRow}>
-                    <MaterialCommunityIcons
-                      name="phone-plus"
-                      size={22}
-                      color="#6b7280"
-                    />
-
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>
-                        Alternate Number
-                      </Text>
-
-                      <Text style={styles.infoValue}>
-                        {address.altMobileNumber}
-                      </Text>
-                    </View>
-                  </View>
-                </>
-              ) : null}
 
               <View style={styles.divider} />
 
@@ -391,9 +296,9 @@ export default function AccountInfoScreen() {
                   </Text>
 
                   <Text style={styles.infoValue}>
-                    {address.addressLine1}
-                    {address.addressLine2
-                      ? `, ${address.addressLine2}`
+                    {address.line1}
+                    {address.line2
+                      ? `, ${address.line2}`
                       : ''}
                   </Text>
                 </View>
@@ -453,34 +358,10 @@ export default function AccountInfoScreen() {
                   </Text>
 
                   <Text style={styles.infoValue}>
-                    {address.pincode}
+                    {address.postalCode}
                   </Text>
                 </View>
               </View>
-
-              {address.landmark ? (
-                <>
-                  <View style={styles.divider} />
-
-                  <View style={styles.infoRow}>
-                    <MaterialCommunityIcons
-                      name="map-marker-star-outline"
-                      size={22}
-                      color="#6b7280"
-                    />
-
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>
-                        Landmark
-                      </Text>
-
-                      <Text style={styles.infoValue}>
-                        {address.landmark}
-                      </Text>
-                    </View>
-                  </View>
-                </>
-              ) : null}
             </>
           ) : (
             <View style={styles.emptyCard}>

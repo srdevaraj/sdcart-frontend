@@ -75,6 +75,9 @@ export default function CartScreen(){
     clearCart,
     removeFromCart,
     reloadCart,
+    updateQuantity,
+    totalAmount,
+    totalQuantity,
   } =
     useCart();
 
@@ -218,69 +221,23 @@ export default function CartScreen(){
     useMemo(()=>{
 
 
-      let subtotal = 0;
-
-
-      let quantity = 0;
-
-
-
-      (cartItems || [])
-      .forEach(item=>{
-
-
-        const itemPrice =
-          Number(
-            item.price || 0
-          );
-
-
-
-        const itemQty =
-          Number(
-            item.quantity || 1
-          );
-
-
-
-        subtotal +=
-          itemPrice *
-          itemQty;
-
-
-
-        quantity +=
-          itemQty;
-
-
-
-      });
-
-
-
-
+      // Server-authoritative totals from the CartResponse.
       return {
 
 
-        subtotal,
+        subtotal:
+          totalAmount,
 
-        quantity,
+        quantity:
+          totalQuantity,
 
 
         delivery:
-          subtotal > 500
-          ?
-          0
-          :
-          40,
+          0,
 
 
         total:
-          subtotal > 500
-          ?
-          subtotal
-          :
-          subtotal + 40,
+          totalAmount,
 
 
       };
@@ -288,7 +245,8 @@ export default function CartScreen(){
 
 
     },[
-      cartItems
+      totalAmount,
+      totalQuantity
     ]);
     
   /* ===============================================
@@ -528,24 +486,18 @@ export default function CartScreen(){
 
 
 
-        /*
-          Replace this section
-          with payment API
-          Razorpay / Backend order API
-        */
+        // Checkout flow: pick a delivery address, then review the order.
+        navigation.navigate(
 
+          "DeliveryAddress",
 
-        Alert.alert(
+          {
 
-          "Order Success",
+            selectMode:true,
 
-          "Your order has been placed successfully"
+          }
 
         );
-
-
-
-        await clearCart();
 
 
 
@@ -726,6 +678,42 @@ export default function CartScreen(){
             item.price || 0
           );
 
+
+
+
+        const changeQuantity =
+          async(nextQuantity)=>{
+
+            if(
+              nextQuantity < 1
+            )
+            {
+
+              return;
+
+            }
+
+
+            const result =
+            await updateQuantity(
+              item.id,
+              nextQuantity
+            );
+
+
+            if(
+              !result.success
+            )
+            {
+
+              Alert.alert(
+                "Error",
+                result.message
+              );
+
+            }
+
+          };
 
 
 
@@ -1110,6 +1098,12 @@ export default function CartScreen(){
                       styles.quantityButton
                     }
 
+                    onPress={() =>
+                      changeQuantity(
+                        quantity - 1
+                      )
+                    }
+
                   >
 
 
@@ -1152,6 +1146,12 @@ export default function CartScreen(){
 
                     style={
                       styles.quantityButton
+                    }
+
+                    onPress={() =>
+                      changeQuantity(
+                        quantity + 1
+                      )
                     }
 
                   >

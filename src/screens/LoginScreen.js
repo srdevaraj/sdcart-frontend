@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,15 +13,11 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';
-import { AuthContext } from '../context/AuthContext';
-
-const API_BASE_URL = 'https://sdcart-backend-1.onrender.com';
+import { useAuth } from '../context/AuthContext';
+import { getErrorMessage } from '../services/apiClient';
 
 export default function LoginScreen({ navigation }) {
-  const { setUserInfo } = useContext(AuthContext);
+  const { login } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,51 +26,17 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert(
-        'Missing Information',
-        'Please enter your email and password.'
-      );
+      Alert.alert('Missing Information', 'Please enter your email and password.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/auth/login`,
-        {
-          email: email.trim(),
-          password,
-        }
-      );
-
-      const token = response.data.token;
-
-      if (token) {
-        await AsyncStorage.setItem('userToken', token);
-
-        const decoded = jwtDecode(token);
-
-        setUserInfo(decoded);
-
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' }],
-        });
-      } else {
-        Alert.alert(
-          'Login Failed',
-          'No authentication token was returned from the server.'
-        );
-      }
+      await login(email, password);
+      // The navigator swaps to MainTabs automatically once userInfo is set.
     } catch (error) {
-      console.error('❌ Login error:', error);
-
-      Alert.alert(
-        'Login Failed',
-        error.response?.data?.message ||
-          'Unable to login. Please check your credentials and try again.'
-      );
+      Alert.alert('Login Failed', getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -82,10 +44,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.screen}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#F8FAFC"
-      />
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -99,10 +58,7 @@ export default function LoginScreen({ navigation }) {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <View style={styles.logoGlow}>
-              <Image
-                source={require('../../assets/clogo.png')}
-                style={styles.logo}
-              />
+              <Image source={require('../../assets/clogo.png')} style={styles.logo} />
             </View>
           </View>
 
@@ -110,9 +66,7 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.header}>
             <Text style={styles.title}>Welcome Back 👋</Text>
 
-            <Text style={styles.subtitle}>
-              Sign in to continue shopping with sdCart
-            </Text>
+            <Text style={styles.subtitle}>Sign in to continue shopping with sdCart</Text>
           </View>
 
           {/* Login Card */}
@@ -161,39 +115,26 @@ export default function LoginScreen({ navigation }) {
                   disabled={loading}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.eyeIcon}>
-                    {showPassword ? '◉' : '◌'}
-                  </Text>
+                  <Text style={styles.eyeIcon}>{showPassword ? '◉' : '◌'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Login Button */}
             <TouchableOpacity
-              style={[
-                styles.loginButton,
-                loading && styles.loginButtonDisabled,
-              ]}
+              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={loading}
               activeOpacity={0.85}
             >
               {loading ? (
                 <View style={styles.loadingContent}>
-                  <ActivityIndicator
-                    size="small"
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.loginButtonText}>
-                    Signing in...
-                  </Text>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={styles.loginButtonText}>Signing in...</Text>
                 </View>
               ) : (
                 <View style={styles.buttonContent}>
-                  <Text style={styles.loginButtonText}>
-                    Sign In
-                  </Text>
-
+                  <Text style={styles.loginButtonText}>Sign In</Text>
                   <Text style={styles.arrow}>→</Text>
                 </View>
               )}
@@ -202,18 +143,14 @@ export default function LoginScreen({ navigation }) {
 
           {/* Register */}
           <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>
-              Don't have an account?
-            </Text>
+            <Text style={styles.registerText}>Don't have an account?</Text>
 
             <TouchableOpacity
               onPress={() => navigation.navigate('Register')}
               disabled={loading}
               activeOpacity={0.7}
             >
-              <Text style={styles.registerLink}>
-                Create Account
-              </Text>
+              <Text style={styles.registerLink}>Create Account</Text>
             </TouchableOpacity>
           </View>
 

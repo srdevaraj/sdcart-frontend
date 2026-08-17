@@ -16,34 +16,18 @@ import {
   View,
 } from 'react-native';
 
-import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 
-import { addToCartAPI } from '../../src/api/cartApi';
+import { getProducts } from '../services/productService';
+import { normalizeProductPage } from '../services/normalizers';
+import { useCart } from '../context/CartContext';
 import clogo from '../../assets/clogo.png';
 
 // ============================================================
 // CONSTANTS
 // ============================================================
 
-const BASE_URL =
-  'https://sdcart-backend-1.onrender.com';
-
-const CATEGORY_NAME = 'electricals';
-
 const PAGE_SIZE = 20;
-
-// ============================================================
-// API
-// ============================================================
-
-const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 15000,
-  headers: {
-    Accept: 'application/json',
-  },
-});
 
 // ============================================================
 // SCREEN
@@ -51,7 +35,14 @@ const api = axios.create({
 
 export default function ElectricalsModule({
   navigation,
+  route,
 }) {
+  // Category-driven screen (slug/title come from the route).
+  const { slug = 'electronics', title = 'Electricals' } =
+    route.params || {};
+
+  const { addToCart } = useCart();
+
   // ==========================================================
   // STATES
   // ==========================================================
@@ -108,23 +99,13 @@ export default function ElectricalsModule({
         // ----------------------------------------------------
         // API REQUEST
         // ----------------------------------------------------
+        const data = await getProducts({
+          category: slug,
+          page: pageNumber,
+          size: PAGE_SIZE,
+        });
 
-        const response = await api.get(
-          `/products/category/${CATEGORY_NAME}`,
-          {
-            params: {
-              page: pageNumber,
-              size: PAGE_SIZE,
-            },
-          }
-        );
-
-        const data = response?.data;
-
-        const newProducts =
-          Array.isArray(data?.content)
-            ? data.content
-            : [];
+        const newProducts = normalizeProductPage(data)?.content || [];
 
         // ----------------------------------------------------
         // FIRST PAGE
@@ -281,12 +262,12 @@ export default function ElectricalsModule({
       }
 
       try {
-        setAddingToCartId(product.id);
+        setAddingToCartId(product.id);        const result = await addToCart(product.id, 1);
 
-        await addToCartAPI(
-          product.id,
-          1
-        );
+        if (!result.success) {
+          Alert.alert('Unable to add', result.message);
+          return;
+        }
 
         Alert.alert(
           'Added to cart',
@@ -880,7 +861,7 @@ export default function ElectricalsModule({
                   styles.sectionTitle
                 }
               >
-                Electricals
+                {title}
               </Text>
 
               <Text

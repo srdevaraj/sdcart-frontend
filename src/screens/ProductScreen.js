@@ -20,17 +20,26 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { getAllProducts } from '../services/productService';
+import { getProducts } from '../services/productService';
+import { normalizeProductPage } from '../services/normalizers';
+import { discountPercent, formatPrice } from '../services/format';
+import { getCategories } from '../services/categoryService';
 import { useCart } from '../context/CartContext';
-import { addToCartAPI } from '../api/cartApi';
+import { useWishlist } from '../context/WishlistContext';
 
 import clogo from '../../assets/clogo.png';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 54) / 2;
 
-const API_IMAGE =
-  'https://res.cloudinary.com/<your-cloud-name>/image/upload/';
+function categoryIcon(name) {
+  const n = (name || '').toLowerCase();
+  if (n.includes('electron') || n.includes('mobile') || n.includes('gadget')) return 'laptop';
+  if (n.includes('cloth') || n.includes('fashion') || n.includes('apparel')) return 'tshirt-crew';
+  if (n.includes('home') || n.includes('kitchen') || n.includes('grocery')) return 'cart';
+  if (n.includes('sport') || n.includes('fit')) return 'dumbbell';
+  return 'shape-outline';
+}
 
 export default function ProductScreen({
   navigation,
@@ -47,21 +56,38 @@ export default function ProductScreen({
 
   const [addingToCartId, setAddingToCartId] = useState(null);
 
+  // null = All; otherwise a category slug
   const [selectedCategory, setSelectedCategory] =
-    useState('All');
+    useState(null);
+
+  const [categories, setCategories] = useState([]);
 
   const fade = useRef(new Animated.Value(0)).current;
   const translate = useRef(new Animated.Value(25)).current;
 
   const { addToCart } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
 
   useEffect(() => {
     navigation.setOptions({
       headerShown: false,
     });
 
-    fetchProducts();
+    getCategories()
+      .then((data) =>
+        setCategories(
+          data.map((category) => ({
+            ...category,
+            icon: categoryIcon(category.name),
+          }))
+        )
+      )
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [selectedCategory]);
 
   useEffect(() => {
     Animated.parallel([
@@ -95,16 +121,13 @@ export default function ProductScreen({
         setLoading(true);
       }
 
-      const response = await getAllProducts(pageNumber, 25);
+      const response = await getProducts({
+        category: selectedCategory || undefined,
+        page: pageNumber,
+        size: 25,
+      });
 
-      const processed = response.content.map(item => ({
-        ...item,
-        imageUrl:
-          item.imageUrl &&
-          !item.imageUrl.startsWith('http')
-            ? API_IMAGE + item.imageUrl
-            : item.imageUrl,
-      }));
+      const processed = normalizeProductPage(response)?.content || [];
 
       if (pageNumber === 0) {
         setProducts(processed);
@@ -141,7 +164,12 @@ export default function ProductScreen({
     try {
       setAddingToCartId(product.id);
 
-      await addToCartAPI(product.id, 1);
+      const result = await addToCart(product.id, 1);
+
+      if (!result.success) {
+        Alert.alert('Error', result.message);
+        return;
+      }
 
       addToCart(product);
     } catch (e) {
@@ -296,42 +324,17 @@ return (
             contentContainerStyle={styles.categoryContainer}
           >
 
-            {[
-              {
-                name: 'All',
-                icon: 'apps',
-              },
-              {
-                name: 'Fruits',
-                icon: 'fruit-cherries',
-              },
-              {
-                name: 'Mobiles',
-                icon: 'cellphone',
-              },
-              {
-                name: 'Grocery',
-                icon: 'cart',
-              },
-              {
-                name: 'Fashion',
-                icon: 'tshirt-crew',
-              },
-              {
-                name: 'Electronics',
-                icon: 'laptop',
-              },
-            ].map(category => (
+            {[{ name: 'All', slug: null, icon: 'apps' }, ...categories].map(category => (
 
               <TouchableOpacity
-                key={category.name}
+                key={category.slug || 'all'}
                 activeOpacity={0.9}
                 onPress={() =>
-                  setSelectedCategory(category.name)
+                  setSelectedCategory(category.slug)
                 }
                 style={[
                   styles.categoryChip,
-                  selectedCategory === category.name &&
+                  selectedCategory === category.slug &&
                     styles.activeCategoryChip,
                 ]}
               >
@@ -340,7 +343,7 @@ return (
                   name={category.icon}
                   size={22}
                   color={
-                    selectedCategory === category.name
+                    selectedCategory === category.slug
                       ? '#FFFFFF'
                       : '#2563EB'
                   }
@@ -349,7 +352,7 @@ return (
                 <Text
                   style={[
                     styles.categoryText,
-                    selectedCategory === category.name &&
+                    selectedCategory === category.slug &&
                       styles.activeCategoryText,
                   ]}
                 >
@@ -397,20 +400,28 @@ return (
 
           {/* Discount */}
 
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>
-              20% OFF
-            </Text>
-          </View>
+          {discountPercent(item) > 0 && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>
+                {discountPercent(item)}% OFF
+              </Text>
+            </View>
+          )}
 
           {/* Favourite */}
 
           <TouchableOpacity
             style={styles.favoriteButton}
             activeOpacity={0.8}
+            onPress={async () => {
+              const result = await toggleWishlist(item.id);
+              if (!result.success) {
+                Alert.alert('Wishlist', result.message);
+              }
+            }}
           >
             <MaterialCommunityIcons
-              name="heart-outline"
+              name={isInWishlist(item.id) ? 'heart' : 'heart-outline'}
               size={22}
               color="#EF4444"
             />
@@ -448,11 +459,11 @@ return (
             />
 
             <Text style={styles.ratingText}>
-              4.8
+              {item.rating || '4.5'}
             </Text>
 
             <Text style={styles.reviewText}>
-              (240)
+              ({item.reviewCount || 0})
             </Text>
 
           </View>
@@ -462,12 +473,14 @@ return (
           <View style={styles.priceRow}>
 
             <Text style={styles.price}>
-              ₹{item.price}
+              {formatPrice(item.price)}
             </Text>
 
-            <Text style={styles.oldPrice}>
-              ₹{Math.round(item.price * 1.25)}
-            </Text>
+            {item.actualPrice ? (
+              <Text style={styles.oldPrice}>
+                {formatPrice(item.actualPrice)}
+              </Text>
+            ) : null}
 
           </View>
 

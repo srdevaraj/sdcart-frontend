@@ -15,19 +15,27 @@ import {
   StatusBar,
 } from 'react-native';
 
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 
-const API_URL = 'https://sdcart-backend-1.onrender.com';
+import {
+  getAddresses,
+  deleteAddress,
+  setDefaultAddress,
+} from '../services/addressService';
+import { getErrorMessage } from '../services/apiClient';
 
 const DeliveryAddress = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const isFocused = useIsFocused();
 
-  const [address, setAddress] = useState(null);
+  // When selectMode is true the screen acts as the checkout address picker.
+  const { selectMode = false } = route.params || {};
+
+  const [addresses, setAddresses] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [btnLoading, setBtnLoading] = useState(null);
@@ -51,36 +59,23 @@ const DeliveryAddress = () => {
     ]).start();
   };
 
-  // Fetch Address
-  const fetchAddress = async () => {
+  // Fetch Addresses
+  const fetchAddresses = async () => {
     try {
       setLoading(true);
 
-      const token = await AsyncStorage.getItem('userToken');
+      const data = await getAddresses();
+      setAddresses(data);
 
-      const response = await axios.get(
-        `${API_URL}/api/address`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (Array.isArray(response.data)) {
-        setAddress(response.data.length > 0 ? response.data[0] : null);
-      } else {
-        setAddress(response.data || null);
+      // Default to the user's default address in select mode.
+      if (selectMode && !selectedId) {
+        const defaultAddress = data.find((a) => a.isDefault) || data[0];
+        if (defaultAddress) setSelectedId(defaultAddress.publicId);
       }
 
       startAnimation();
     } catch (error) {
-      console.log(error);
-
-      Alert.alert(
-        'Oops!',
-        'Unable to load your delivery address.'
-      );
+      Alert.alert('Oops!', getErrorMessage(error));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -89,65 +84,62 @@ const DeliveryAddress = () => {
 
   useEffect(() => {
     if (isFocused) {
-      fetchAddress();
+      fetchAddresses();
     }
-  }, [isFocused]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused, selectMode]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchAddress();
+    await fetchAddresses();
   };
 
   // Delete Address
-  const handleDelete = async () => {
+  const handleDelete = async (address) => {
     try {
-      setBtnLoading('delete');
+      setBtnLoading(address.publicId);
 
-      const token = await AsyncStorage.getItem('userToken');
+      await deleteAddress(address.publicId);
 
-      await axios.delete(
-        `${API_URL}/api/address/${address.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      Alert.alert(
-        'Success',
-        'Address deleted successfully.'
-      );
-
-      fetchAddress();
+      Alert.alert('Success', 'Address deleted successfully.');
+      fetchAddresses();
     } catch (error) {
-      console.log(error);
-
-      Alert.alert(
-        'Error',
-        'Failed to delete address.'
-      );
+      Alert.alert('Error', getErrorMessage(error));
     } finally {
       setBtnLoading(null);
     }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = (address) => {
     Alert.alert(
       'Delete Address',
       'Are you sure you want to remove this delivery address?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: handleDelete,
-        },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => handleDelete(address) },
       ]
     );
+  };
+
+  const handleSetDefault = async (address) => {
+    try {
+      setBtnLoading(address.publicId);
+      await setDefaultAddress(address.publicId);
+      fetchAddresses();
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error));
+    } finally {
+      setBtnLoading(null);
+    }
+  };
+
+  // Checkout: continue with the selected address
+  const handleProceed = () => {
+    if (!selectedId) {
+      Alert.alert('Select Address', 'Please choose a delivery address.');
+      return;
+    }
+    navigation.navigate('OrderScreen', { addressId: selectedId });
   };
 
   // Premium Loader
@@ -157,27 +149,19 @@ const DeliveryAddress = () => {
         colors={['#2563EB', '#4F46E5']}
         style={styles.loaderContainer}
       >
-        <StatusBar
-          barStyle="light-content"
-          backgroundColor="#2563EB"
-        />
+        <StatusBar barStyle="light-content" backgroundColor="#2563EB" />
 
         <Image
           source={require('../../assets/clogo.png')}
           style={styles.loaderLogo}
         />
 
-        <ActivityIndicator
-          size="large"
-          color="#FFFFFF"
-        />
+        <ActivityIndicator size="large" color="#FFFFFF" />
 
-        <Text style={styles.loadingTitle}>
-          Loading Address
-        </Text>
+        <Text style={styles.loadingTitle}>Loading Address</Text>
 
         <Text style={styles.loadingSubtitle}>
-          Please wait while we fetch your saved address...
+          Please wait while we fetch your saved addresses...
         </Text>
       </LinearGradient>
     );
@@ -185,10 +169,7 @@ const DeliveryAddress = () => {
 
   return (
     <>
-      <StatusBar
-        backgroundColor="#2563EB"
-        barStyle="light-content"
-      />
+      <StatusBar backgroundColor="#2563EB" barStyle="light-content" />
 
       <ScrollView
         style={styles.container}
@@ -214,228 +195,183 @@ const DeliveryAddress = () => {
           />
 
           <Text style={styles.headerTitle}>
-            Delivery Address
+            {selectMode ? 'Choose Address' : 'Delivery Address'}
           </Text>
 
           <Text style={styles.headerSubtitle}>
-            Manage your saved delivery location
+            {selectMode
+              ? 'Select the address for this order'
+              : 'Manage your saved delivery locations'}
           </Text>
         </LinearGradient>
 
         <Animated.View
           style={{
             opacity: fadeAnim,
-            transform: [
-              {
-                translateY: slideAnim,
-              },
-            ],
+            transform: [{ translateY: slideAnim }],
           }}
         >
-                  {address ? (
-            <>
-              <View style={styles.addressCard}>
+          {addresses.length > 0 ? (
+            addresses.map((address) => {
+              const isSelected = selectedId === address.publicId;
 
-                <View style={styles.badge}>
-                  <MaterialCommunityIcons
-                    name="check-decagram"
-                    size={16}
-                    color="#fff"
-                  />
-                  <Text style={styles.badgeText}>
-                    DEFAULT ADDRESS
-                  </Text>
-                </View>
-
-                <View style={styles.row}>
-
-                  <View style={styles.iconBox}>
-                    <MaterialCommunityIcons
-                      name="account"
-                      size={26}
-                      color="#2563EB"
-                    />
-                  </View>
-
-                  <View style={styles.content}>
-                    <Text style={styles.label}>
-                      Receiver
-                    </Text>
-
-                    <Text style={styles.value}>
-                      {address.fullName}
-                    </Text>
-                  </View>
-
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.row}>
-
-                  <View style={styles.iconBox}>
-                    <MaterialCommunityIcons
-                      name="phone"
-                      size={24}
-                      color="#16A34A"
-                    />
-                  </View>
-
-                  <View style={styles.content}>
-                    <Text style={styles.label}>
-                      Contact Number
-                    </Text>
-
-                    <Text style={styles.value}>
-                      {address.mobileNumber}
-                    </Text>
-
-                    {address.altMobileNumber ? (
-                      <Text style={styles.secondaryText}>
-                        Alternate : {address.altMobileNumber}
+              return (
+                <TouchableOpacity
+                  key={address.publicId}
+                  activeOpacity={0.95}
+                  style={[
+                    styles.addressCard,
+                    selectMode && isSelected && styles.selectedCard,
+                  ]}
+                  onPress={() => {
+                    if (selectMode) {
+                      setSelectedId(address.publicId);
+                    }
+                  }}
+                >
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.badge}>
+                      <MaterialCommunityIcons
+                        name="check-decagram"
+                        size={16}
+                        color="#fff"
+                      />
+                      <Text style={styles.badgeText}>
+                        {address.isDefault ? 'DEFAULT' : address.label.toUpperCase()}
                       </Text>
-                    ) : null}
-
-                  </View>
-
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.row}>
-
-                  <View style={styles.iconBox}>
-                    <MaterialCommunityIcons
-                      name="map-marker-radius"
-                      size={25}
-                      color="#EF4444"
-                    />
-                  </View>
-
-                  <View style={styles.content}>
-
-                    <Text style={styles.label}>
-                      Delivery Address
-                    </Text>
-
-                    <Text style={styles.value}>
-                      {address.addressLine1}
-                      {address.addressLine2
-                        ? `, ${address.addressLine2}`
-                        : ''}
-                    </Text>
-
-                    <Text style={styles.secondaryText}>
-                      {address.city}, {address.state}
-                    </Text>
-
-                    <Text style={styles.secondaryText}>
-                      {address.pincode}
-                    </Text>
-
-                  </View>
-
-                </View>
-
-                {address.landmark ? (
-                  <>
-                    <View style={styles.divider} />
-
-                    <View style={styles.row}>
-
-                      <View style={styles.iconBox}>
-                        <MaterialCommunityIcons
-                          name="map-marker-star"
-                          size={24}
-                          color="#F59E0B"
-                        />
-                      </View>
-
-                      <View style={styles.content}>
-                        <Text style={styles.label}>
-                          Landmark
-                        </Text>
-
-                        <Text style={styles.value}>
-                          {address.landmark}
-                        </Text>
-                      </View>
-
                     </View>
-                  </>
-                ) : null}
 
-              </View>
-
-              {/* Action Buttons */}
-
-              <View style={styles.actionRow}>
-
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.editBtn}
-                  disabled={btnLoading === 'update'}
-                  onPress={() =>
-                    navigation.navigate(
-                      'AddEditAddress',
-                      { address }
-                    )
-                  }
-                >
-
-                  {btnLoading === 'update' ? (
-                    <ActivityIndicator
-                      color="#fff"
-                    />
-                  ) : (
-                    <>
+                    {selectMode && (
                       <MaterialCommunityIcons
-                        name="pencil-outline"
-                        size={22}
-                        color="#fff"
+                        name={
+                          isSelected
+                            ? 'radiobox-marked'
+                            : 'radiobox-blank'
+                        }
+                        size={24}
+                        color={isSelected ? '#2563EB' : '#CBD5E1'}
                       />
+                    )}
+                  </View>
 
-                      <Text style={styles.actionText}>
-                        Edit
-                      </Text>
-                    </>
-                  )}
-
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.deleteBtn}
-                  disabled={btnLoading === 'delete'}
-                  onPress={confirmDelete}
-                >
-
-                  {btnLoading === 'delete' ? (
-                    <ActivityIndicator
-                      color="#fff"
-                    />
-                  ) : (
-                    <>
+                  <View style={styles.row}>
+                    <View style={styles.iconBox}>
                       <MaterialCommunityIcons
-                        name="delete-outline"
-                        size={22}
-                        color="#fff"
+                        name="account"
+                        size={26}
+                        color="#2563EB"
                       />
+                    </View>
 
-                      <Text style={styles.actionText}>
-                        Delete
+                    <View style={styles.content}>
+                      <Text style={styles.label}>Receiver</Text>
+                      <Text style={styles.value}>{address.recipientName}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.row}>
+                    <View style={styles.iconBox}>
+                      <MaterialCommunityIcons
+                        name="phone"
+                        size={24}
+                        color="#16A34A"
+                      />
+                    </View>
+
+                    <View style={styles.content}>
+                      <Text style={styles.label}>Contact Number</Text>
+                      <Text style={styles.value}>{address.phone}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.row}>
+                    <View style={styles.iconBox}>
+                      <MaterialCommunityIcons
+                        name="map-marker-radius"
+                        size={25}
+                        color="#EF4444"
+                      />
+                    </View>
+
+                    <View style={styles.content}>
+                      <Text style={styles.label}>Delivery Address</Text>
+                      <Text style={styles.value}>
+                        {address.line1}
+                        {address.line2 ? `, ${address.line2}` : ''}
                       </Text>
-                    </>
+                      <Text style={styles.secondaryText}>
+                        {address.city}
+                        {address.state ? `, ${address.state}` : ''}
+                      </Text>
+                      <Text style={styles.secondaryText}>
+                        {address.postalCode} · {address.country}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Action Buttons (manage mode only) */}
+                  {!selectMode && (
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={styles.editBtn}
+                        onPress={() =>
+                          navigation.navigate('AddEditAddress', { address })
+                        }
+                      >
+                        <MaterialCommunityIcons
+                          name="pencil-outline"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={styles.actionText}>Edit</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={styles.defaultBtn}
+                        disabled={btnLoading === address.publicId}
+                        onPress={() => handleSetDefault(address)}
+                      >
+                        {btnLoading === address.publicId ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons
+                              name="star-outline"
+                              size={20}
+                              color="#fff"
+                            />
+                            <Text style={styles.actionText}>
+                              {address.isDefault ? 'Default' : 'Set Default'}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={styles.deleteBtn}
+                        onPress={() => confirmDelete(address)}
+                      >
+                        <MaterialCommunityIcons
+                          name="delete-outline"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={styles.actionText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
-
                 </TouchableOpacity>
-
-              </View>
-            </>
+              );
+            })
           ) : (
-
             <View style={styles.emptyContainer}>
-
               <View style={styles.emptyCircle}>
                 <MaterialCommunityIcons
                   name="map-marker-off-outline"
@@ -444,51 +380,61 @@ const DeliveryAddress = () => {
                 />
               </View>
 
-              <Text style={styles.emptyTitle}>
-                No Address Found
-              </Text>
+              <Text style={styles.emptyTitle}>No Address Found</Text>
 
               <Text style={styles.emptyDescription}>
-                Save your delivery address to enjoy
-                faster checkout and hassle-free
-                deliveries.
+                Save your delivery address to enjoy faster checkout and
+                hassle-free deliveries.
               </Text>
 
               <TouchableOpacity
                 style={styles.addBtn}
                 activeOpacity={0.9}
-                onPress={() =>
-                  navigation.navigate('AddEditAddress')
-                }
+                onPress={() => navigation.navigate('AddEditAddress')}
               >
-
                 <MaterialCommunityIcons
                   name="plus-circle"
                   size={22}
                   color="#fff"
                 />
 
-                <Text style={styles.addText}>
-                  Add New Address
-                </Text>
-
+                <Text style={styles.addText}>Add New Address</Text>
               </TouchableOpacity>
-
             </View>
+          )}
 
+          {/* Add-new (manage mode) */}
+          {!selectMode && addresses.length > 0 && (
+            <TouchableOpacity
+              style={[styles.addBtn, styles.addBtnFull]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('AddEditAddress')}
+            >
+              <MaterialCommunityIcons name="plus-circle" size={22} color="#fff" />
+              <Text style={styles.addText}>Add New Address</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Checkout CTA (select mode) */}
+          {selectMode && addresses.length > 0 && (
+            <TouchableOpacity
+              style={styles.proceedBtn}
+              activeOpacity={0.9}
+              onPress={handleProceed}
+            >
+              <MaterialCommunityIcons name="arrow-right" size={22} color="#fff" />
+              <Text style={styles.proceedText}>Proceed to Checkout</Text>
+            </TouchableOpacity>
           )}
 
           <View style={{ height: 40 }} />
-
         </Animated.View>
-
       </ScrollView>
-
     </>
   );
 };
-const styles = StyleSheet.create({
 
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F4F7FC',
@@ -560,7 +506,7 @@ const styles = StyleSheet.create({
 
   addressCard: {
     marginHorizontal: 20,
-    marginTop: -45,
+    marginTop: 18,
     backgroundColor: '#fff',
     borderRadius: 24,
     padding: 22,
@@ -576,6 +522,18 @@ const styles = StyleSheet.create({
     },
   },
 
+  selectedCard: {
+    borderWidth: 2,
+    borderColor: '#2563EB',
+  },
+
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+
   badge: {
     alignSelf: 'flex-start',
 
@@ -588,7 +546,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
 
     borderRadius: 25,
-    marginBottom: 18,
   },
 
   badgeText: {
@@ -654,68 +611,90 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 10,
+    marginTop: 14,
   },
 
   editBtn: {
     flex: 1,
-
-    height: 56,
-
+    height: 48,
     backgroundColor: '#2563EB',
-
     marginRight: 8,
-
-    borderRadius: 16,
-
+    borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+  },
 
-    elevation: 6,
-
-    shadowColor: '#2563EB',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+  defaultBtn: {
+    flex: 1,
+    height: 48,
+    backgroundColor: '#16A34A',
+    marginRight: 8,
+    borderRadius: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   deleteBtn: {
     flex: 1,
-
-    height: 56,
-
+    height: 48,
     backgroundColor: '#EF4444',
-
-    marginLeft: 8,
-
-    borderRadius: 16,
-
+    borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-
-    elevation: 6,
-
-    shadowColor: '#EF4444',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
   },
 
   actionText: {
     color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 6,
+  },
+
+  /* ---------------- Add / Proceed ---------------- */
+
+  addBtn: {
+    marginTop: 28,
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 15,
+    borderRadius: 30,
+    alignSelf: 'center',
+  },
+
+  addBtnFull: {
+    alignSelf: 'stretch',
+    marginHorizontal: 20,
+  },
+
+  addText: {
+    color: '#fff',
+    marginLeft: 10,
     fontSize: 16,
     fontWeight: '700',
-    marginLeft: 8,
+  },
+
+  proceedBtn: {
+    marginHorizontal: 20,
+    marginTop: 24,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  proceedText: {
+    color: '#fff',
+    marginLeft: 10,
+    fontSize: 16,
+    fontWeight: '800',
   },
 
   /* ---------------- Empty State ---------------- */
@@ -736,7 +715,7 @@ const styles = StyleSheet.create({
     elevation: 8,
 
     shadowColor: '#000',
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     shadowOffset: {
       width: 0,
@@ -765,49 +744,11 @@ const styles = StyleSheet.create({
 
   emptyDescription: {
     marginTop: 12,
-
     textAlign: 'center',
-
     color: '#64748B',
-
     fontSize: 15,
-
     lineHeight: 24,
   },
-
-  addBtn: {
-    marginTop: 28,
-
-    backgroundColor: '#2563EB',
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    paddingHorizontal: 28,
-    paddingVertical: 15,
-
-    borderRadius: 30,
-
-    elevation: 6,
-
-    shadowColor: '#2563EB',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-  },
-
-  addText: {
-    color: '#fff',
-    marginLeft: 10,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-
 });
+
 export default DeliveryAddress;

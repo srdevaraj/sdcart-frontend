@@ -72,6 +72,7 @@ export default function AccountScreen(){
     logout,
     authLoading,
     refreshUserInfo,
+    isAdmin,
   } =
     useAuth();
 
@@ -983,7 +984,7 @@ export default function AccountScreen(){
 
             color="#E11D48"
 
-            screen="Favourites"
+            screen="Wishlist"
 
             delay={300}
 
@@ -1012,56 +1013,27 @@ export default function AccountScreen(){
             delay={400}
 
           />
+          {isAdmin ? (
 
+            <AccountMenuItem
 
+              id="admin"
 
+              icon="shield-checkmark-outline"
 
+              title="Admin Dashboard"
 
+              subtitle="Manage products, orders and users"
 
+              color="#7C3AED"
 
+              screen="Admin"
 
-          <AccountMenuItem
+              delay={500}
 
-            id="coupon"
+            />
 
-            icon="pricetag-outline"
-
-            title="Coupons"
-
-            subtitle="Available offers and discounts"
-
-            color="#EA580C"
-
-            screen="Coupons"
-
-            delay={500}
-
-          />
-
-
-
-
-
-
-
-
-          <AccountMenuItem
-
-            id="help"
-
-            icon="help-circle-outline"
-
-            title="Help Center"
-
-            subtitle="Get support and assistance"
-
-            color="#0891B2"
-
-            screen="HelpCenter"
-
-            delay={600}
-
-          />
+          ) : null}
 
 
 

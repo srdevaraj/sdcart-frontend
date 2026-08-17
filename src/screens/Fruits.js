@@ -12,10 +12,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 
-import { addToCartAPI } from '../../src/api/cartApi';
+import { getProducts } from '../services/productService';
+import { normalizeProductPage } from '../services/normalizers';
+import { useCart } from '../context/CartContext';
 import clogo from '../../assets/clogo.png';
 
 const { width } = Dimensions.get('window');
@@ -26,19 +27,15 @@ const COLUMN_GAP = 12;
 const ITEM_WIDTH =
   (width - HORIZONTAL_PADDING * 2 - COLUMN_GAP) / 2;
 
-const BASE_URL = 'https://sdcart-backend-1.onrender.com';
-
 const PAGE_SIZE = 20;
 
-const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 15000,
-  headers: {
-    Accept: 'application/json',
-  },
-});
+export default function Fruits({ navigation, route }) {
+  // Category-driven screen: the slug/title come from the route (set by the
+  // Home category grid). Defaults keep direct navigation functional.
+  const { slug = 'home-kitchen', title = 'Fruits' } = route.params || {};
 
-export default function Fruits({ navigation }) {
+  const { addToCart } = useCart();
+
   const [products, setProducts] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -68,18 +65,13 @@ export default function Fruits({ navigation }) {
           setLoadingMore(true);
         }
 
-        const response = await api.get('/products/light', {
-          params: {
-            page: pageNumber,
-            size: PAGE_SIZE,
-          },
+        const data = await getProducts({
+          category: slug,
+          page: pageNumber,
+          size: PAGE_SIZE,
         });
 
-        const data = response?.data;
-
-        const newProducts = Array.isArray(data?.content)
-          ? data.content
-          : [];
+        const newProducts = normalizeProductPage(data)?.content || [];
 
         /*
          * First page
@@ -213,7 +205,12 @@ export default function Fruits({ navigation }) {
       try {
         setAddingToCartId(product.id);
 
-        await addToCartAPI(product.id, 1);
+        const result = await addToCart(product.id, 1);
+
+        if (!result.success) {
+          Alert.alert('Unable to add', result.message);
+          return;
+        }
 
         Alert.alert(
           'Added to cart',
@@ -488,7 +485,7 @@ export default function Fruits({ navigation }) {
         ListHeaderComponent={
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              Fruits
+              {title}
             </Text>
 
             <Text style={styles.sectionSubtitle}>

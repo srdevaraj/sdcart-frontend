@@ -1,5 +1,5 @@
 import React, {
-  useContext,
+  useEffect,
   useState,
 } from 'react';
 
@@ -11,30 +11,43 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 
-import axios from 'axios';
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import {
   Ionicons,
+  MaterialCommunityIcons,
 } from '@expo/vector-icons';
 
 import {
-  AuthContext,
+  useAuth,
 } from '../context/AuthContext';
 
+import {
+  useCart,
+} from '../context/CartContext';
 
-// ============================================================
-// CONSTANTS
-// ============================================================
+import {
+  getAddresses,
+} from '../services/addressService';
 
-const BASE_URL =
-  'https://sdcart-backend-1.onrender.com';
+import {
+  createOrder,
+} from '../services/orderService';
 
+import {
+  validateCoupon,
+} from '../services/couponService';
+
+import {
+  getErrorMessage,
+} from '../services/apiClient';
+
+import {
+  formatPrice,
+} from '../services/format';
 
 // ============================================================
 // SCREEN
@@ -45,816 +58,482 @@ export default function OrderScreen({
   route,
 }) {
 
-  // ==========================================================
-  // PRODUCT
-  // ==========================================================
+  const { userInfo } = useAuth();
+  const {
+    cartItems,
+    totalAmount,
+    reloadCart,
+  } = useCart();
 
-  const { product } =
-    route.params || {};
-
-  const { userInfo } =
-    useContext(AuthContext);
+  const { addressId } = route.params || {};
 
   // ==========================================================
   // STATE
   // ==========================================================
 
-  const [loading, setLoading] =
-    useState(false);
-
-
-  // ==========================================================
-  // PRICE
-  // ==========================================================
-
-  const productPrice =
-    Number(product?.price || 0);
-
-  const quantity = 1;
-
-  const itemTotal =
-    productPrice * quantity;
-
-  const deliveryCharge = 0;
-
-  const totalAmount =
-    itemTotal + deliveryCharge;
-
+  const [address, setAddress] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('CARD');
+  const [couponCode, setCouponCode] = useState('');
+  const [coupon, setCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [placing, setPlacing] = useState(false);
 
   // ==========================================================
-  // PRODUCT IMAGE
+  // LOAD ADDRESS + CART
   // ==========================================================
 
-  const getProductImage = () => {
+  useEffect(() => {
+    reloadCart().catch(() => {});
+    getAddresses()
+      .then((list) => {
+        const found = list.find((a) => a.publicId === addressId);
+        setAddress(found || list.find((a) => a.isDefault) || list[0] || null);
+      })
+      .catch(() => {
+        Alert.alert('Error', 'Unable to load your delivery address.');
+      });
+  }, [addressId]);
 
-    if (
-      product?.imageUrl &&
-      typeof product.imageUrl === 'string' &&
-      product.imageUrl.trim().length > 0
-    ) {
-      return {
-        uri: product.imageUrl,
-      };
+  // ==========================================================
+  // PRICE SUMMARY (estimate — backend is authoritative at order time)
+  // ==========================================================
+
+  const subtotal = Number(totalAmount || 0);
+  const discount = Number(coupon?.discountAmount || 0);
+  const estimatedTotal = Math.max(subtotal - discount, 0);
+
+  // ==========================================================
+  // COUPON
+  // ==========================================================
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+
+    setCouponLoading(true);
+    try {
+      const result = await validateCoupon(couponCode.trim(), subtotal);
+      if (result?.valid) {
+        setCoupon(result);
+        Alert.alert('Coupon applied', result.message || 'Coupon applied successfully.');
+      } else {
+        setCoupon(null);
+        Alert.alert('Invalid coupon', result?.message || 'This coupon cannot be applied.');
+      }
+    } catch (error) {
+      setCoupon(null);
+      Alert.alert('Coupon error', getErrorMessage(error));
+    } finally {
+      setCouponLoading(false);
     }
-
-    return null;
   };
 
-
   // ==========================================================
-  // CREATE PAYMENT ORDER
+  // PLACE ORDER
   // ==========================================================
 
-  const createOrder = async () => {
-
-    if (!product?.id) {
-
-      Alert.alert(
-        'Product unavailable',
-        'This product is no longer available.'
-      );
-
+  const placeOrder = async () => {
+    if (!address) {
+      Alert.alert('Address required', 'Please select a delivery address.');
       return;
     }
 
-
-    if (productPrice <= 0) {
-
-      Alert.alert(
-        'Invalid amount',
-        'The product price is not valid.'
-      );
-
+    if (cartItems.length === 0) {
+      Alert.alert('Cart empty', 'Your cart is empty.');
       return;
     }
 
+    if (placing) return;
 
-    setLoading(true);
+    setPlacing(true);
 
     try {
+      const order = await createOrder({
+        addressId: address.publicId,
+        paymentMethod,
+        couponCode: coupon ? coupon.code : undefined,
+      });
 
-      // ------------------------------------------------------
-      // GET JWT TOKEN
-      // ------------------------------------------------------
-
-      const token =
-        await AsyncStorage.getItem(
-          'userToken'
-        );
-
-
-      if (
-        !token ||
-        token === 'null' ||
-        token === 'undefined'
-      ) {
-
-        Alert.alert(
-          'Login required',
-          'Please login before continuing to payment.',
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-            },
-            {
-              text: 'Login',
-              onPress: () =>
-                navigation.navigate(
-                  'Login'
-                ),
-            },
-          ]
-        );
-
-        return;
-      }
-
-
-      // ------------------------------------------------------
-      // CREATE RAZORPAY ORDER
-      // ------------------------------------------------------
-
-      const response =
-        await axios.post(
-
-          `${BASE_URL}/api/payment/create-order?amount=${totalAmount}`,
-
-          {},
-
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-
-              Accept:
-                'application/json',
-            },
-          }
-
-        );
-
-
-      const {
-        id: orderId,
-      } = response?.data || {};
-
-
-      if (!orderId) {
-
-        throw new Error(
-          'Payment order ID was not returned.'
-        );
-      }
-
-
-      // ------------------------------------------------------
-      // NAVIGATE TO PAYMENT
-      // ------------------------------------------------------
-
-      navigation.navigate(
-        'Payment',
-        {
-          orderId,
-
-          amount:
-            totalAmount,
-
-          product,
-
-          user: {
-            email:
-              userInfo?.email,
-
-            mobile:
-              userInfo?.mobile,
-          },
-        }
-      );
-
+      navigation.replace('Payment', {
+        orderPublicId: order.publicId,
+      });
     } catch (error) {
-
-      console.error(
-        'Create order error:',
-        error?.response?.data ||
-        error?.message
-      );
-
-
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Unable to create your order. Please try again.';
-
-
-      Alert.alert(
-        'Unable to continue',
-        message
-      );
-
+      Alert.alert('Unable to place order', getErrorMessage(error));
     } finally {
-
-      setLoading(false);
-
+      setPlacing(false);
     }
   };
 
-
   // ==========================================================
-  // INVALID PRODUCT
+  // EMPTY CART
   // ==========================================================
 
-  if (!product) {
-
+  if (cartItems.length === 0 && !placing) {
     return (
-      <SafeAreaView
-        style={styles.safeArea}
-      >
-
-        <View
-          style={styles.emptyContainer}
-        >
-
-          <View
-            style={styles.emptyIcon}
-          >
-
-            <Ionicons
-              name="alert-circle-outline"
-              size={42}
-              color="#DC2626"
-            />
-
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="cart-outline" size={42} color="#94A3B8" />
           </View>
 
+          <Text style={styles.emptyTitle}>Your cart is empty</Text>
 
-          <Text
-            style={styles.emptyTitle}
-          >
-            Product unavailable
+          <Text style={styles.emptyDescription}>
+            Add products to your cart before checking out.
           </Text>
-
-
-          <Text
-            style={styles.emptyDescription}
-          >
-            We couldn't find the product
-            you are trying to order.
-          </Text>
-
 
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() =>
-              navigation.goBack()
-            }
+            onPress={() => navigation.navigate('Products')}
           >
-
-            <Text
-              style={styles.backButtonText}
-            >
-              Go Back
-            </Text>
-
+            <Text style={styles.backButtonText}>Start Shopping</Text>
           </TouchableOpacity>
-
         </View>
-
       </SafeAreaView>
     );
   }
-
 
   // ==========================================================
   // MAIN UI
   // ==========================================================
 
   return (
-
-    <SafeAreaView
-      style={styles.safeArea}
-    >
+    <SafeAreaView style={styles.safeArea}>
 
       {/* ====================================================
           HEADER
       ==================================================== */}
 
-      <View
-        style={styles.header}
-      >
+      <View style={styles.header}>
 
         <TouchableOpacity
           style={styles.headerBackButton}
-          onPress={() =>
-            navigation.goBack()
-          }
+          onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-
-          <Ionicons
-            name="arrow-back"
-            size={23}
-            color="#172337"
-          />
-
+          <Ionicons name="arrow-back" size={23} color="#172337" />
         </TouchableOpacity>
 
-
-        <View
-          style={styles.headerTitleContainer}
-        >
-
-          <Text
-            style={styles.headerTitle}
-          >
-            Order Summary
-          </Text>
-
-          <Text
-            style={styles.headerSubtitle}
-          >
-            Review your order
-          </Text>
-
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Order Summary</Text>
+          <Text style={styles.headerSubtitle}>Review your order</Text>
         </View>
 
-
-        <View
-          style={styles.secureHeader}
-        >
-
-          <Ionicons
-            name="lock-closed-outline"
-            size={16}
-            color="#15803D"
-          />
-
+        <View style={styles.secureHeader}>
+          <Ionicons name="lock-closed-outline" size={16} color="#15803D" />
         </View>
 
       </View>
 
-
-      {/* ====================================================
-          CONTENT
-      ==================================================== */}
-
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={
-          styles.scrollContent
-        }
+        contentContainerStyle={styles.scrollContent}
       >
 
         {/* ==================================================
-            DELIVERY / ACCOUNT
+            ORDERING AS
         ================================================== */}
 
-        <View
-          style={styles.infoCard}
-        >
+        <View style={styles.infoCard}>
 
-          <View
-            style={styles.infoIcon}
-          >
+          <View style={styles.infoIcon}>
+            <Ionicons name="person-outline" size={20} color="#2874F0" />
+          </View>
 
-            <Ionicons
-              name="person-outline"
-              size={20}
-              color="#2874F0"
-            />
+          <View style={styles.infoContent}>
+            <Text style={styles.infoLabel}>Ordering as</Text>
+
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {userInfo?.email || 'Registered customer'}
+            </Text>
+
+            {userInfo?.phone ? (
+              <Text style={styles.infoSecondary}>{userInfo.phone}</Text>
+            ) : null}
+          </View>
+
+        </View>
+
+        {/* ==================================================
+            DELIVERY ADDRESS
+        ================================================== */}
+
+        <View style={styles.section}>
+
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Delivery Address</Text>
+
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate('DeliveryAddress', { selectMode: true })
+              }
+            >
+              <Text style={styles.changeText}>Change</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.addressCard}>
+            <View style={styles.addressIcon}>
+              <MaterialCommunityIcons name="map-marker-radius" size={22} color="#2563EB" />
+            </View>
+
+            <View style={styles.addressContent}>
+              {address ? (
+                <>
+                  <Text style={styles.addressName}>
+                    {address.recipientName} · {address.phone}
+                  </Text>
+                  <Text style={styles.addressLine}>
+                    {address.line1}
+                    {address.line2 ? `, ${address.line2}` : ''}
+                  </Text>
+                  <Text style={styles.addressLine}>
+                    {address.city}
+                    {address.state ? `, ${address.state}` : ''} · {address.postalCode}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.addressName}>No address selected</Text>
+              )}
+            </View>
+          </View>
+
+        </View>
+
+        {/* ==================================================
+            ITEMS
+        ================================================== */}
+
+        <View style={styles.section}>
+
+          <Text style={styles.sectionTitle}>Items ({cartItems.length})</Text>
+
+          {cartItems.map((item) => (
+            <View key={item.id} style={styles.itemCard}>
+
+              <View style={styles.itemImageContainer}>
+                {item.imageUrl ? (
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    style={styles.itemImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <Ionicons name="image-outline" size={30} color="#94A3B8" />
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemName} numberOfLines={2}>
+                  {item.name}
+                </Text>
+
+                <View style={styles.itemMeta}>
+                  <View style={styles.quantityBadge}>
+                    <Text style={styles.quantityText}>Qty: {item.quantity}</Text>
+                  </View>
+
+                  <Text style={styles.itemPrice}>
+                    {formatPrice(item.price)}
+                  </Text>
+                </View>
+              </View>
+
+            </View>
+          ))}
+
+        </View>
+
+        {/* ==================================================
+            PAYMENT METHOD
+        ================================================== */}
+
+        <View style={styles.section}>
+
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+
+          <View style={styles.paymentCard}>
+
+            {[
+              { key: 'CARD', label: 'Credit / Debit Card', icon: 'card-outline' },
+              { key: 'PAYPAL', label: 'PayPal', icon: 'logo-paypal' },
+              { key: 'CASH_ON_DELIVERY', label: 'Cash on Delivery', icon: 'cash-outline' },
+            ].map((method) => (
+              <TouchableOpacity
+                key={method.key}
+                style={styles.paymentRow}
+                onPress={() => setPaymentMethod(method.key)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={method.icon} size={20} color="#334155" />
+                <Text style={styles.paymentLabel}>{method.label}</Text>
+
+                <Ionicons
+                  name={
+                    paymentMethod === method.key
+                      ? 'radio-button-on'
+                      : 'radio-button-off'
+                  }
+                  size={22}
+                  color={paymentMethod === method.key ? '#2563EB' : '#CBD5E1'}
+                />
+              </TouchableOpacity>
+            ))}
 
           </View>
 
+        </View>
 
-          <View
-            style={styles.infoContent}
-          >
+        {/* ==================================================
+            COUPON
+        ================================================== */}
 
-            <Text
-              style={styles.infoLabel}
-            >
-              Ordering as
-            </Text>
+        <View style={styles.section}>
 
+          <Text style={styles.sectionTitle}>Coupon</Text>
 
-            <Text
-              style={styles.infoValue}
-              numberOfLines={1}
-            >
-              {userInfo?.email ||
-                'Registered customer'}
-            </Text>
+          <View style={styles.couponCard}>
 
+            <View style={styles.couponInputRow}>
+              <TextInput
+                style={styles.couponInput}
+                placeholder="Enter coupon code"
+                placeholderTextColor="#94A3B8"
+                value={couponCode}
+                onChangeText={(text) => {
+                  setCouponCode(text.toUpperCase());
+                  setCoupon(null);
+                }}
+                autoCapitalize="characters"
+              />
 
-            {userInfo?.mobile ? (
-
-              <Text
-                style={styles.infoSecondary}
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={applyCoupon}
+                disabled={couponLoading || !couponCode.trim()}
+                activeOpacity={0.8}
               >
-                {userInfo.mobile}
-              </Text>
+                {couponLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.applyText}>Apply</Text>
+                )}
+              </TouchableOpacity>
+            </View>
 
+            {coupon ? (
+              <Text style={styles.couponApplied}>
+                ✅ {coupon.code} applied — {formatPrice(coupon.discountAmount)} off
+              </Text>
             ) : null}
 
           </View>
 
         </View>
 
-
-        {/* ==================================================
-            PRODUCT CARD
-        ================================================== */}
-
-        <View
-          style={styles.section}
-        >
-
-          <Text
-            style={styles.sectionTitle}
-          >
-            Product Details
-          </Text>
-
-
-          <View
-            style={styles.productCard}
-          >
-
-            {/* Product Image */}
-
-            <View
-              style={styles.imageContainer}
-            >
-
-              {getProductImage() ? (
-
-                <Image
-                  source={
-                    getProductImage()
-                  }
-                  style={styles.productImage}
-                  resizeMode="contain"
-                />
-
-              ) : (
-
-                <View
-                  style={
-                    styles.imagePlaceholder
-                  }
-                >
-
-                  <Ionicons
-                    name="image-outline"
-                    size={42}
-                    color="#94A3B8"
-                  />
-
-                </View>
-
-              )}
-
-            </View>
-
-
-            {/* Product Information */}
-
-            <View
-              style={styles.productInfo}
-            >
-
-              <Text
-                style={styles.productName}
-                numberOfLines={3}
-              >
-                {product.name ||
-                  'Unnamed Product'}
-              </Text>
-
-
-              <View
-                style={styles.productMeta}
-              >
-
-                <View
-                  style={styles.quantityBadge}
-                >
-
-                  <Text
-                    style={
-                      styles.quantityText
-                    }
-                  >
-                    Qty: {quantity}
-                  </Text>
-
-                </View>
-
-
-                <Text
-                  style={styles.productPrice}
-                >
-                  ₹
-                  {productPrice.toLocaleString(
-                    'en-IN'
-                  )}
-                </Text>
-
-              </View>
-
-
-              <View
-                style={styles.assuredRow}
-              >
-
-                <Ionicons
-                  name="shield-checkmark"
-                  size={14}
-                  color="#2874F0"
-                />
-
-                <Text
-                  style={
-                    styles.assuredText
-                  }
-                >
-                  sdCart Assured
-                </Text>
-
-              </View>
-
-            </View>
-
-          </View>
-
-        </View>
-
-
         {/* ==================================================
             PRICE DETAILS
         ================================================== */}
 
-        <View
-          style={styles.section}
-        >
+        <View style={styles.section}>
 
-          <Text
-            style={styles.sectionTitle}
-          >
-            Price Details
-          </Text>
+          <Text style={styles.sectionTitle}>Price Details</Text>
 
+          <View style={styles.priceCard}>
 
-          <View
-            style={styles.priceCard}
-          >
-
-            {/* Item Price */}
-
-            <View
-              style={styles.priceRow}
-            >
-
-              <Text
-                style={styles.priceLabel}
-              >
-                Item price
-              </Text>
-
-              <Text
-                style={styles.priceValue}
-              >
-                ₹
-                {itemTotal.toLocaleString(
-                  'en-IN'
-                )}
-              </Text>
-
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Subtotal</Text>
+              <Text style={styles.priceValue}>{formatPrice(subtotal)}</Text>
             </View>
 
+            {coupon ? (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Coupon discount</Text>
+                <Text style={styles.discountValue}>
+                  − {formatPrice(discount)}
+                </Text>
+              </View>
+            ) : null}
 
-            {/* Quantity */}
-
-            <View
-              style={styles.priceRow}
-            >
-
-              <Text
-                style={styles.priceLabel}
-              >
-                Quantity
-              </Text>
-
-              <Text
-                style={styles.priceValue}
-              >
-                {quantity}
-              </Text>
-
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Delivery</Text>
+              <Text style={styles.freeText}>Calculated at checkout</Text>
             </View>
 
+            <View style={styles.divider} />
 
-            {/* Delivery */}
-
-            <View
-              style={styles.priceRow}
-            >
-
-              <Text
-                style={styles.priceLabel}
-              >
-                Delivery
-              </Text>
-
-              <Text
-                style={styles.freeText}
-              >
-                FREE
-              </Text>
-
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Estimated Total</Text>
+              <Text style={styles.totalValue}>{formatPrice(estimatedTotal)}</Text>
             </View>
 
-
-            <View
-              style={styles.divider}
-            />
-
-
-            {/* Total */}
-
-            <View
-              style={styles.totalRow}
-            >
-
-              <Text
-                style={styles.totalLabel}
-              >
-                Total Amount
-              </Text>
-
-              <Text
-                style={styles.totalValue}
-              >
-                ₹
-                {totalAmount.toLocaleString(
-                  'en-IN'
-                )}
-              </Text>
-
-            </View>
+            <Text style={styles.noteText}>
+              Final totals (including delivery and taxes) are confirmed by the
+              server when the order is placed.
+            </Text>
 
           </View>
 
         </View>
-
 
         {/* ==================================================
             BENEFITS
         ================================================== */}
 
-        <View
-          style={styles.benefitsCard}
-        >
+        <View style={styles.benefitsCard}>
 
-          <View
-            style={styles.benefitRow}
-          >
-
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={20}
-              color="#15803D"
-            />
-
-            <View
-              style={styles.benefitContent}
-            >
-
-              <Text
-                style={styles.benefitTitle}
-              >
-                Secure Payment
-              </Text>
-
-              <Text
-                style={styles.benefitDescription}
-              >
+          <View style={styles.benefitRow}>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#15803D" />
+            <View style={styles.benefitContent}>
+              <Text style={styles.benefitTitle}>Secure Payment</Text>
+              <Text style={styles.benefitDescription}>
                 Your payment information is protected.
               </Text>
-
             </View>
-
           </View>
 
+          <View style={styles.benefitDivider} />
 
-          <View
-            style={styles.benefitDivider}
-          />
-
-
-          <View
-            style={styles.benefitRow}
-          >
-
-            <Ionicons
-              name="flash-outline"
-              size={20}
-              color="#F59E0B"
-            />
-
-            <View
-              style={styles.benefitContent}
-            >
-
-              <Text
-                style={styles.benefitTitle}
-              >
-                Fast Checkout
-              </Text>
-
-              <Text
-                style={styles.benefitDescription}
-              >
+          <View style={styles.benefitRow}>
+            <Ionicons name="flash-outline" size={20} color="#F59E0B" />
+            <View style={styles.benefitContent}>
+              <Text style={styles.benefitTitle}>Fast Checkout</Text>
+              <Text style={styles.benefitDescription}>
                 Complete your payment securely through our payment gateway.
               </Text>
-
             </View>
-
           </View>
 
         </View>
 
       </ScrollView>
 
-
       {/* ====================================================
-          BOTTOM CHECKOUT BAR
+          BOTTOM BAR
       ==================================================== */}
 
-      <View
-        style={styles.bottomBar}
-      >
+      <View style={styles.bottomBar}>
 
-        <View
-          style={styles.bottomPrice}
-        >
-
-          <Text
-            style={styles.bottomLabel}
-          >
-            Total
-          </Text>
-
-          <Text
-            style={styles.bottomAmount}
-          >
-            ₹
-            {totalAmount.toLocaleString(
-              'en-IN'
-            )}
-          </Text>
-
+        <View style={styles.bottomPrice}>
+          <Text style={styles.bottomLabel}>Estimated Total</Text>
+          <Text style={styles.bottomAmount}>{formatPrice(estimatedTotal)}</Text>
         </View>
 
-
         <TouchableOpacity
-          style={[
-            styles.paymentButton,
-            loading &&
-              styles.paymentButtonDisabled,
-          ]}
-          onPress={createOrder}
-          disabled={loading}
+          style={[styles.placeButton, placing && styles.paymentButtonDisabled]}
+          onPress={placeOrder}
+          disabled={placing}
           activeOpacity={0.85}
         >
-
-          {loading ? (
-
-            <ActivityIndicator
-              size="small"
-              color="#FFFFFF"
-            />
-
+          {placing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-
             <>
-              <Text
-                style={
-                  styles.paymentButtonText
-                }
-              >
-                Proceed to Payment
-              </Text>
-
-              <Ionicons
-                name="arrow-forward"
-                size={18}
-                color="#FFFFFF"
-              />
+              <Text style={styles.placeButtonText}>Place Order</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
             </>
-
           )}
-
         </TouchableOpacity>
 
       </View>
@@ -862,7 +541,6 @@ export default function OrderScreen({
     </SafeAreaView>
   );
 }
-
 
 // ============================================================
 // STYLES
@@ -878,7 +556,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F7FA',
   },
-
 
   // ==========================================================
   // HEADER
@@ -896,7 +573,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
 
     borderBottomWidth: 1,
-    marginTop:50,
+    marginTop: 50,
     borderBottomColor: '#E2E8F0',
   },
 
@@ -946,7 +623,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-
   // ==========================================================
   // CONTENT
   // ==========================================================
@@ -959,9 +635,8 @@ const styles = StyleSheet.create({
     paddingBottom: 130,
   },
 
-
   // ==========================================================
-  // ACCOUNT CARD
+  // INFO CARD
   // ==========================================================
 
   infoCard: {
@@ -969,7 +644,7 @@ const styles = StyleSheet.create({
 
     backgroundColor: '#FFFFFF',
 
-    borderRadius: 10,
+    borderRadius: 12,
 
     padding: 14,
 
@@ -1024,13 +699,19 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
 
-
   // ==========================================================
   // SECTION
   // ==========================================================
 
   section: {
     marginTop: 18,
+  },
+
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 9,
   },
 
   sectionTitle: {
@@ -1043,38 +724,103 @@ const styles = StyleSheet.create({
     color: '#172337',
   },
 
+  changeText: {
+    fontSize: 14,
+
+    fontWeight: '700',
+
+    color: '#2563EB',
+  },
 
   // ==========================================================
-  // PRODUCT CARD
+  // ADDRESS
   // ==========================================================
 
-  productCard: {
+  addressCard: {
     flexDirection: 'row',
 
     backgroundColor: '#FFFFFF',
 
-    borderRadius: 10,
+    borderRadius: 12,
 
-    padding: 12,
+    padding: 14,
 
     borderWidth: 1,
 
     borderColor: '#E2E8F0',
   },
 
-  imageContainer: {
-    width: 105,
-    height: 120,
+  addressIcon: {
+    width: 44,
+    height: 44,
 
-    borderRadius: 8,
+    borderRadius: 22,
 
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EEF4FF',
 
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  productImage: {
+  addressContent: {
+    flex: 1,
+
+    marginLeft: 12,
+
+    justifyContent: 'center',
+  },
+
+  addressName: {
+    fontSize: 14,
+
+    fontWeight: '700',
+
+    color: '#172337',
+  },
+
+  addressLine: {
+    marginTop: 2,
+
+    fontSize: 12,
+
+    color: '#64748B',
+  },
+
+  // ==========================================================
+  // ITEMS
+  // ==========================================================
+
+  itemCard: {
+    flexDirection: 'row',
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 12,
+
+    padding: 12,
+
+    marginBottom: 10,
+
+    borderWidth: 1,
+
+    borderColor: '#E2E8F0',
+  },
+
+  itemImageContainer: {
+    width: 78,
+    height: 78,
+
+    borderRadius: 10,
+
+    backgroundColor: '#F8FAFC',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    overflow: 'hidden',
+  },
+
+  itemImage: {
     width: '90%',
     height: '90%',
   },
@@ -1084,32 +830,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  productInfo: {
+  itemInfo: {
     flex: 1,
 
-    marginLeft: 13,
+    marginLeft: 12,
 
-    paddingVertical: 2,
+    justifyContent: 'center',
   },
 
-  productName: {
-    fontSize: 15,
+  itemName: {
+    fontSize: 14,
 
-    lineHeight: 21,
+    lineHeight: 20,
 
     fontWeight: '700',
 
     color: '#172337',
   },
 
-  productMeta: {
+  itemMeta: {
     flexDirection: 'row',
-
     alignItems: 'center',
-
     justifyContent: 'space-between',
 
-    marginTop: 12,
+    marginTop: 10,
   },
 
   quantityBadge: {
@@ -1117,7 +861,7 @@ const styles = StyleSheet.create({
 
     paddingVertical: 4,
 
-    borderRadius: 5,
+    borderRadius: 6,
 
     backgroundColor: '#F1F5F9',
   },
@@ -1130,32 +874,128 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
 
-  productPrice: {
-    fontSize: 17,
+  itemPrice: {
+    fontSize: 15,
 
     fontWeight: '800',
 
     color: '#172337',
   },
 
-  assuredRow: {
+  // ==========================================================
+  // PAYMENT METHOD
+  // ==========================================================
+
+  paymentCard: {
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 12,
+
+    paddingHorizontal: 14,
+
+    borderWidth: 1,
+
+    borderColor: '#E2E8F0',
+  },
+
+  paymentRow: {
     flexDirection: 'row',
 
     alignItems: 'center',
 
-    marginTop: 11,
+    paddingVertical: 14,
+
+    borderBottomWidth: StyleSheet.hairlineWidth,
+
+    borderBottomColor: '#E2E8F0',
   },
 
-  assuredText: {
-    marginLeft: 5,
+  paymentLabel: {
+    flex: 1,
 
-    fontSize: 11,
+    marginLeft: 10,
+
+    fontSize: 14,
 
     fontWeight: '600',
 
-    color: '#2874F0',
+    color: '#334155',
   },
 
+  // ==========================================================
+  // COUPON
+  // ==========================================================
+
+  couponCard: {
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 12,
+
+    padding: 14,
+
+    borderWidth: 1,
+
+    borderColor: '#E2E8F0',
+  },
+
+  couponInputRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+  },
+
+  couponInput: {
+    flex: 1,
+
+    height: 46,
+
+    borderRadius: 10,
+
+    backgroundColor: '#F8FAFC',
+
+    borderWidth: 1,
+
+    borderColor: '#E2E8F0',
+
+    paddingHorizontal: 14,
+
+    fontSize: 15,
+
+    color: '#111827',
+  },
+
+  applyButton: {
+    height: 46,
+
+    paddingHorizontal: 20,
+
+    marginLeft: 10,
+
+    borderRadius: 10,
+
+    backgroundColor: '#2563EB',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  applyText: {
+    color: '#fff',
+
+    fontWeight: '700',
+
+    fontSize: 14,
+  },
+
+  couponApplied: {
+    marginTop: 10,
+
+    fontSize: 13,
+
+    fontWeight: '700',
+
+    color: '#15803D',
+  },
 
   // ==========================================================
   // PRICE CARD
@@ -1164,7 +1004,7 @@ const styles = StyleSheet.create({
   priceCard: {
     backgroundColor: '#FFFFFF',
 
-    borderRadius: 10,
+    borderRadius: 12,
 
     padding: 15,
 
@@ -1175,9 +1015,7 @@ const styles = StyleSheet.create({
 
   priceRow: {
     flexDirection: 'row',
-
     alignItems: 'center',
-
     justifyContent: 'space-between',
 
     marginBottom: 13,
@@ -1195,6 +1033,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
 
     color: '#334155',
+  },
+
+  discountValue: {
+    fontSize: 13,
+
+    fontWeight: '800',
+
+    color: '#15803D',
   },
 
   freeText: {
@@ -1217,9 +1063,7 @@ const styles = StyleSheet.create({
 
   totalRow: {
     flexDirection: 'row',
-
     alignItems: 'center',
-
     justifyContent: 'space-between',
   },
 
@@ -1239,6 +1083,15 @@ const styles = StyleSheet.create({
     color: '#172337',
   },
 
+  noteText: {
+    marginTop: 10,
+
+    fontSize: 11,
+
+    lineHeight: 16,
+
+    color: '#94A3B8',
+  },
 
   // ==========================================================
   // BENEFITS
@@ -1249,7 +1102,7 @@ const styles = StyleSheet.create({
 
     backgroundColor: '#FFFFFF',
 
-    borderRadius: 10,
+    borderRadius: 12,
 
     padding: 15,
 
@@ -1296,7 +1149,6 @@ const styles = StyleSheet.create({
     marginVertical: 13,
   },
 
-
   // ==========================================================
   // BOTTOM BAR
   // ==========================================================
@@ -1328,7 +1180,7 @@ const styles = StyleSheet.create({
   },
 
   bottomPrice: {
-    width: 95,
+    width: 110,
   },
 
   bottomLabel: {
@@ -1342,21 +1194,21 @@ const styles = StyleSheet.create({
   bottomAmount: {
     marginTop: 2,
 
-    fontSize: 17,
+    fontSize: 16,
 
     fontWeight: '900',
 
     color: '#172337',
   },
 
-  paymentButton: {
+  placeButton: {
     flex: 1,
 
     height: 48,
 
-    borderRadius: 7,
+    borderRadius: 10,
 
-    backgroundColor: '#FF9F00',
+    backgroundColor: '#2563EB',
 
     flexDirection: 'row',
 
@@ -1371,14 +1223,13 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
 
-  paymentButtonText: {
-    fontSize: 13,
+  placeButtonText: {
+    fontSize: 14,
 
     fontWeight: '800',
 
     color: '#FFFFFF',
   },
-
 
   // ==========================================================
   // EMPTY STATE
@@ -1402,10 +1253,9 @@ const styles = StyleSheet.create({
 
     borderRadius: 41,
 
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#EEF2F7',
 
     alignItems: 'center',
-
     justifyContent: 'center',
 
     marginBottom: 18,
@@ -1440,9 +1290,9 @@ const styles = StyleSheet.create({
 
     paddingHorizontal: 25,
 
-    borderRadius: 7,
+    borderRadius: 10,
 
-    backgroundColor: '#2874F0',
+    backgroundColor: '#2563EB',
 
     alignItems: 'center',
 

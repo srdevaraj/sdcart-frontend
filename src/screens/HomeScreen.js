@@ -24,60 +24,57 @@ import {
   LinearGradient,
 } from 'expo-linear-gradient';
 
-import axios from 'axios';
+import { getCategories } from '../services/categoryService';
+import { getProducts, primaryImage } from '../services/productService';
 
 const {
   width,
 } = Dimensions.get('window');
 
 // ============================================================
-// CONSTANTS
+// CATEGORY SCREEN MAPPING
 // ============================================================
+//
+// The backend defines its own catalog categories (Electronics, Clothing,
+// Home & Kitchen, Sports). Each is mapped to one of the existing category
+// screens by keyword; the screen renders whatever slug/title it receives,
+// so users always see the real category name.
 
-const API_URL =
-  'https://sdcart-backend-1.onrender.com/api/ads';
-
-const categories = [
+const CATEGORY_PRESETS = [
   {
-    name: 'Mobiles',
-    icon: 'cellphone',
+    keywords: ['electron', 'mobile', 'phone', 'gadget'],
     screen: 'Mobiles',
-    colors: [
-      '#667eea',
-      '#764ba2',
-    ],
+    icon: 'cellphone',
+    colors: ['#667eea', '#764ba2'],
   },
-
   {
-    name: 'Grocery',
-    icon: 'cart',
-    screen: 'Grocery',
-    colors: [
-      '#11998e',
-      '#38ef7d',
-    ],
-  },
-
-  {
-    name: 'Fruits',
-    icon: 'food-apple',
+    keywords: ['cloth', 'fashion', 'apparel', 'wear'],
     screen: 'Fruits',
-    colors: [
-      '#f7971e',
-      '#ffd200',
-    ],
+    icon: 'tshirt-crew',
+    colors: ['#f7971e', '#ffd200'],
   },
-
   {
-    name: 'Electricals',
-    icon: 'flash',
+    keywords: ['home', 'kitchen', 'grocery', 'food'],
+    screen: 'Grocery',
+    icon: 'cart',
+    colors: ['#11998e', '#38ef7d'],
+  },
+  {
+    keywords: ['sport', 'fit', 'outdoor'],
     screen: 'ElectricalsModule',
-    colors: [
-      '#ff512f',
-      '#dd2476',
-    ],
+    icon: 'dumbbell',
+    colors: ['#ff512f', '#dd2476'],
   },
 ];
+
+function presetForCategory(category) {
+  const haystack = `${category.name} ${category.slug}`.toLowerCase();
+  return (
+    CATEGORY_PRESETS.find((preset) =>
+      preset.keywords.some((keyword) => haystack.includes(keyword))
+    ) || CATEGORY_PRESETS[0]
+  );
+}
 
 export default function HomeScreen({
   navigation,
@@ -87,68 +84,33 @@ export default function HomeScreen({
   // STATES
   // ==========================================================
 
-  const [
-    ads,
-    setAds,
-  ] = useState([]);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    currentIndex,
-    setCurrentIndex,
-  ] = useState(0);
-
-  const scrollRef =
-    useRef(null);
+  const [featured, setFeatured] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollRef = useRef(null);
 
   // ==========================================================
-  // FETCH ADS
+  // FETCH DATA
   // ==========================================================
 
   useEffect(() => {
+    const fetchHomeData = async () => {
+      try {
+        const [categoryList, featuredPage] = await Promise.all([
+          getCategories(),
+          getProducts({ featured: true, size: 5 }),
+        ]);
+        setCategories(Array.isArray(categoryList) ? categoryList : []);
+        setFeatured(featuredPage?.content || []);
+      } catch (error) {
+        // Non-fatal: the screen degrades to just the header + search.
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const fetchAds =
-      async () => {
-
-        try {
-
-          const response =
-            await axios.get(
-              API_URL
-            );
-
-          const adsData =
-            Array.isArray(
-              response.data
-            )
-              ? response.data
-              : response.data.ads || [];
-
-          setAds(
-            adsData
-          );
-
-        } catch (error) {
-
-          console.log(
-            'Ads Fetch Error:',
-            error.message
-          );
-
-        } finally {
-
-          setLoading(false);
-
-        }
-
-      };
-
-    fetchAds();
-
+    fetchHomeData();
   }, []);
 
   // ==========================================================
@@ -156,99 +118,48 @@ export default function HomeScreen({
   // ==========================================================
 
   useEffect(() => {
-
-    if (
-      ads.length <= 1
-    ) {
+    if (featured.length <= 1) {
       return;
     }
 
-    const interval =
-      setInterval(() => {
+    const interval = setInterval(() => {
+      const nextIndex = (currentIndex + 1) % featured.length;
+      scrollRef.current?.scrollTo({
+        x: nextIndex * width,
+        animated: true,
+      });
+      setCurrentIndex(nextIndex);
+    }, 4000);
 
-        const nextIndex =
-          (
-            currentIndex + 1
-          ) % ads.length;
-
-        scrollRef.current?.scrollTo({
-          x: nextIndex * width,
-          animated: true,
-        });
-
-        setCurrentIndex(
-          nextIndex
-        );
-
-      }, 4000);
-
-    return () =>
-      clearInterval(
-        interval
-      );
-
-  }, [
-    currentIndex,
-    ads,
-  ]);
+    return () => clearInterval(interval);
+  }, [currentIndex, featured]);
 
   // ==========================================================
   // BANNER SCROLL HANDLER
   // ==========================================================
 
-  const handleScroll =
-    (event) => {
-
-      const offset =
-        event.nativeEvent
-          .contentOffset.x;
-
-      const index =
-        Math.round(
-          offset / width
-        );
-
-      setCurrentIndex(
-        index
-      );
-
-    };
+  const handleScroll = (event) => {
+    const offset = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offset / width);
+    setCurrentIndex(index);
+  };
 
   // ==========================================================
   // LOADING SCREEN
   // ==========================================================
 
   if (loading) {
-
     return (
-
       <LinearGradient
-        colors={[
-          '#141E30',
-          '#243B55',
-        ]}
-        style={
-          styles.loader
-        }
+        colors={['#141E30', '#243B55']}
+        style={styles.loader}
       >
-
-        <ActivityIndicator
-          size="large"
-          color="#FFFFFF"
-        />
-
-        <Text
-          style={
-            styles.loadingText
-          }
-        >
+        <ActivityIndicator size="large" color="#FFFFFF" />
+        <Text style={styles.loadingText}>
           Preparing your shopping experience...
         </Text>
-
       </LinearGradient>
-
     );
-
   }
 
   // ==========================================================
@@ -256,14 +167,9 @@ export default function HomeScreen({
   // ==========================================================
 
   return (
-
     <ScrollView
-      style={
-        styles.container
-      }
-      showsVerticalScrollIndicator={
-        false
-      }
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
     >
 
       {/* ======================================================
@@ -271,36 +177,19 @@ export default function HomeScreen({
           ====================================================== */}
 
       <LinearGradient
-        colors={[
-          '#141E30',
-          '#243B55',
-        ]}
-        style={
-          styles.header
-        }
+        colors={['#141E30', '#243B55']}
+        style={styles.header}
       >
 
-        <View
-          style={
-            styles.headerRow
-          }
-        >
+        <View style={styles.headerRow}>
 
           <View>
 
-            <Text
-              style={
-                styles.welcome
-              }
-            >
+            <Text style={styles.welcome}>
               Hello 👋
             </Text>
 
-            <Text
-              style={
-                styles.title
-              }
-            >
+            <Text style={styles.title}>
               Shop Smart, Live Better
             </Text>
 
@@ -314,27 +203,13 @@ export default function HomeScreen({
 
         <TouchableOpacity
           activeOpacity={0.9}
-          style={
-            styles.searchBox
-          }
-          onPress={() =>
-            navigation.navigate(
-              'Search'
-            )
-          }
+          style={styles.searchBox}
+          onPress={() => navigation.navigate('Search')}
         >
 
-          <Ionicons
-            name="search"
-            size={22}
-            color="#667085"
-          />
+          <Ionicons name="search" size={22} color="#667085" />
 
-          <Text
-            style={
-              styles.searchText
-            }
-          >
+          <Text style={styles.searchText}>
             Search products...
           </Text>
 
@@ -343,103 +218,67 @@ export default function HomeScreen({
       </LinearGradient>
 
       {/* ======================================================
-          OFFER BANNER
+          FEATURED PRODUCTS BANNER
           ====================================================== */}
 
-      {
-        ads.length > 0 && (
+      {featured.length > 0 && (
+        <>
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
+            {featured.map((product) => (
+              <TouchableOpacity
+                key={product.publicId}
+                activeOpacity={0.9}
+                onPress={() =>
+                  navigation.navigate('SelectedProduct', {
+                    id: product.publicId,
+                  })
+                }
+              >
+                <Image
+                  source={{ uri: primaryImage(product) }}
+                  resizeMode="cover"
+                  style={styles.banner}
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-          <>
-
-            <ScrollView
-              ref={scrollRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={
-                false
-              }
-              onScroll={
-                handleScroll
-              }
-              scrollEventThrottle={16}
-            >
-
-              {
-                ads.map(
-                  (ad) => (
-
-                    <Image
-                      key={ad.id}
-                      source={{
-                        uri: ad.imageUrl,
-                      }}
-                      resizeMode="cover"
-                      style={
-                        styles.banner
-                      }
-                    />
-
-                  )
-                )
-              }
-
-            </ScrollView>
-
-            <View
-              style={
-                styles.pagination
-              }
-            >
-
-              {
-                ads.map(
-                  (_, index) => (
-
-                    <View
-                      key={index}
-                      style={[
-                        styles.dot,
-                        currentIndex === index &&
-                          styles.activeDot,
-                      ]}
-                    />
-
-                  )
-                )
-              }
-
-            </View>
-
-          </>
-
-        )
-      }
+          <View style={styles.pagination}>
+            {featured.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.dot,
+                  currentIndex === index && styles.activeDot,
+                ]}
+              />
+            ))}
+          </View>
+        </>
+      )}
 
       {/* ======================================================
           CATEGORY HEADER
           ====================================================== */}
 
-      <View
-        style={
-          styles.sectionHeader
-        }
-      >
+      <View style={styles.sectionHeader}>
 
-        <Text
-          style={
-            styles.sectionTitle
-          }
-        >
+        <Text style={styles.sectionTitle}>
           Categories
         </Text>
 
-        <Text
-          style={
-            styles.viewAll
-          }
-        >
-          View All
-        </Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Products')}>
+          <Text style={styles.viewAll}>
+            View All
+          </Text>
+        </TouchableOpacity>
 
       </View>
 
@@ -447,66 +286,47 @@ export default function HomeScreen({
           CATEGORY CARDS
           ====================================================== */}
 
-      <View
-        style={
-          styles.categoryGrid
-        }
-      >
+      <View style={styles.categoryGrid}>
 
-        {
-          categories.map(
-            (item, index) => (
+        {categories.map((category, index) => {
+          const preset = presetForCategory(category);
 
-              <TouchableOpacity
-                key={index}
-                activeOpacity={0.85}
-                onPress={() =>
-                  navigation.navigate(
-                    item.screen
-                  )
-                }
+          return (
+            <TouchableOpacity
+              key={category.publicId || index}
+              activeOpacity={0.85}
+              onPress={() =>
+                navigation.navigate(preset.screen, {
+                  slug: category.slug,
+                  title: category.name,
+                })
+              }
+            >
+
+              <LinearGradient
+                colors={preset.colors}
+                style={styles.categoryCard}
               >
 
-                <LinearGradient
-                  colors={
-                    item.colors
-                  }
-                  style={
-                    styles.categoryCard
-                  }
-                >
+                <View style={styles.iconContainer}>
 
-                  <View
-                    style={
-                      styles.iconContainer
-                    }
-                  >
+                  <MaterialCommunityIcons
+                    name={preset.icon}
+                    size={36}
+                    color="#111827"
+                  />
 
-                    <MaterialCommunityIcons
-                      name={
-                        item.icon
-                      }
-                      size={36}
-                      color="#111827"
-                    />
+                </View>
 
-                  </View>
+                <Text style={styles.categoryText}>
+                  {category.name}
+                </Text>
 
-                  <Text
-                    style={
-                      styles.categoryText
-                    }
-                  >
-                    {item.name}
-                  </Text>
+              </LinearGradient>
 
-                </LinearGradient>
-
-              </TouchableOpacity>
-
-            )
-          )
-        }
+            </TouchableOpacity>
+          );
+        })}
 
       </View>
 
@@ -514,69 +334,46 @@ export default function HomeScreen({
           FEATURE OFFER CARD
           ====================================================== */}
 
-      {
-        ads.length > 0 && (
-
-          <View
-            style={
-              styles.featureCard
-            }
-          >
+      {featured.length > 0 && (
+        <TouchableOpacity
+          activeOpacity={0.95}
+          onPress={() =>
+            navigation.navigate('SelectedProduct', {
+              id: featured[0].publicId,
+            })
+          }
+        >
+          <View style={styles.featureCard}>
 
             <Image
-              source={{
-                uri:
-                  ads[0].imageUrl,
-              }}
+              source={{ uri: primaryImage(featured[0]) }}
               resizeMode="cover"
-              style={
-                styles.featureImage
-              }
+              style={styles.featureImage}
             />
 
             <LinearGradient
-              colors={[
-                'transparent',
-                'rgba(0,0,0,0.75)',
-              ]}
-              style={
-                styles.overlay
-              }
+              colors={['transparent', 'rgba(0,0,0,0.75)']}
+              style={styles.overlay}
             />
 
-            <View
-              style={
-                styles.featureContent
-              }
-            >
+            <View style={styles.featureContent}>
 
-              <Text
-                style={
-                  styles.featureTitle
-                }
-              >
+              <Text style={styles.featureTitle}>
                 Special Offers
               </Text>
 
-              <Text
-                style={
-                  styles.featureSubtitle
-                }
-              >
-                Grab the best deals today
+              <Text style={styles.featureSubtitle}>
+                {featured[0].name || 'Grab the best deals today'}
               </Text>
 
             </View>
 
           </View>
-
-        )
-      }
+        </TouchableOpacity>
+      )}
 
     </ScrollView>
-
   );
-
 }
 
 // ============================================================

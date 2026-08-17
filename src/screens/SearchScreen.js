@@ -29,18 +29,14 @@ import { Ionicons } from '@expo/vector-icons';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import axios from 'axios';
-
-import { addToCartAPI } from '../api/cartApi';
+import { getProducts } from '../services/productService';
+import { normalizeProductPage } from '../services/normalizers';
+import { useCart } from '../context/CartContext';
 
 
 /* =================================================
    CONSTANTS
 ================================================= */
-
-const BASE_URL =
-  'https://sdcart-backend-1.onrender.com/products';
-
 
 const SEARCH_HISTORY_KEY =
   'SEARCH_HISTORY';
@@ -147,6 +143,8 @@ export default function SearchScreen({
   ] = useState('');
 
 
+
+  const { addToCart } = useCart();
 
   /* ===============================
       REFS
@@ -411,58 +409,24 @@ export default function SearchScreen({
 
 
 
-          const token =
-            await AsyncStorage.getItem(
-              'userToken'
-            );
-
-
-
-          const response =
-            await axios.get(
-
-              `${BASE_URL}/search`,
-
-              {
-
-                params:{
-
-                  q:keyword,
-
-                  page:pageNumber,
-
-                  size:PAGE_SIZE,
-
-                },
-
-
-                headers:{
-
-                  Authorization:
-                  `Bearer ${token}`
-
-                },
-
-
-                signal:
-                abortController.current.signal,
-
-
-                timeout:10000,
-
-              }
-
-            );
-
-
-
           const result =
-            response.data;
+            await getProducts({
+
+              q:keyword,
+
+              page:pageNumber,
+
+              size:PAGE_SIZE,
+
+              signal:
+              abortController.current.signal,
+
+            });
 
 
 
           const content =
-            result.content || [];
+            normalizeProductPage(result)?.content || [];
 
 
 
@@ -507,7 +471,7 @@ export default function SearchScreen({
 
 
           if(
-            axios.isCancel(error)
+            error?.code === 'ERR_CANCELED'
           ){
 
             return;
@@ -736,13 +700,30 @@ export default function SearchScreen({
 
 
 
-        await addToCartAPI(
+        const result =
+        await addToCart(
 
           product.id,
 
           1
 
         );
+
+
+
+        if(!result.success){
+
+          Alert.alert(
+
+            "Error",
+
+            result.message
+
+          );
+
+          return;
+
+        }
 
 
 
