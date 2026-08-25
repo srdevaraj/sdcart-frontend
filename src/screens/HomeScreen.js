@@ -1,69 +1,54 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
-
+// src/screens/HomeScreen.js
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
-  Image,
   Dimensions,
-  ActivityIndicator,
+  RefreshControl,
+  StatusBar,
 } from 'react-native';
-
-import {
-  MaterialCommunityIcons,
-  Ionicons,
-} from '@expo/vector-icons';
-
-import {
-  LinearGradient,
-} from 'expo-linear-gradient';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getCategories } from '../services/categoryService';
 import { getProducts, primaryImage } from '../services/productService';
+import { useTheme } from '../theme';
+import { AnimatedPressable } from '../components/common/AnimatedPressable';
+import { AppImage } from '../components/common/AppImage';
+import { ProductCard } from '../components/common/ProductCard';
+import { ShimmerLoader, ProductCardSkeleton } from '../components/common/ShimmerLoader';
+import { AnimatedBadge } from '../components/common/AnimatedBadge';
+import { useCart } from '../context/CartContext';
 
-const {
-  width,
-} = Dimensions.get('window');
-
-// ============================================================
-// CATEGORY SCREEN MAPPING
-// ============================================================
-//
-// The backend defines its own catalog categories (Electronics, Clothing,
-// Home & Kitchen, Sports). Each is mapped to one of the existing category
-// screens by keyword; the screen renders whatever slug/title it receives,
-// so users always see the real category name.
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const CATEGORY_PRESETS = [
   {
     keywords: ['electron', 'mobile', 'phone', 'gadget'],
     screen: 'Mobiles',
     icon: 'cellphone',
-    colors: ['#667eea', '#764ba2'],
+    gradient: ['#3B82F6', '#1D4ED8'],
   },
   {
     keywords: ['cloth', 'fashion', 'apparel', 'wear'],
     screen: 'Fruits',
     icon: 'tshirt-crew',
-    colors: ['#f7971e', '#ffd200'],
+    gradient: ['#F97316', '#EA580C'],
   },
   {
     keywords: ['home', 'kitchen', 'grocery', 'food'],
     screen: 'Grocery',
     icon: 'cart',
-    colors: ['#11998e', '#38ef7d'],
+    gradient: ['#10B981', '#059669'],
   },
   {
     keywords: ['sport', 'fit', 'outdoor'],
     screen: 'ElectricalsModule',
     icon: 'dumbbell',
-    colors: ['#ff512f', '#dd2476'],
+    gradient: ['#EC4899', '#BE185D'],
   },
 ];
 
@@ -72,628 +57,623 @@ function presetForCategory(category) {
   return (
     CATEGORY_PRESETS.find((preset) =>
       preset.keywords.some((keyword) => haystack.includes(keyword))
-    ) || CATEGORY_PRESETS[0]
+    ) || {
+      screen: 'Products',
+      icon: 'shape-outline',
+      gradient: ['#6366F1', '#4F46E5'],
+    }
   );
 }
 
-export default function HomeScreen({
-  navigation,
-}) {
-
-  // ==========================================================
-  // STATES
-  // ==========================================================
+export default function HomeScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const { colors, typography, radius, shadows, layout, isDark } = useTheme();
+  const { totalQuantity } = useCart();
 
   const [featured, setFeatured] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [trending, setTrending] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const scrollRef = useRef(null);
 
-  // ==========================================================
-  // FETCH DATA
-  // ==========================================================
+  const bannerScrollRef = useRef(null);
 
-  useEffect(() => {
-    const fetchHomeData = async () => {
-      try {
-        const [categoryList, featuredPage] = await Promise.all([
-          getCategories(),
-          getProducts({ featured: true, size: 5 }),
-        ]);
-        setCategories(Array.isArray(categoryList) ? categoryList : []);
-        setFeatured(featuredPage?.content || []);
-      } catch (error) {
-        // Non-fatal: the screen degrades to just the header + search.
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchHomeData = useCallback(async () => {
+    try {
+      const [categoryList, featuredPage, trendingPage] = await Promise.all([
+        getCategories().catch(() => []),
+        getProducts({ featured: true, size: 5 }).catch(() => ({ content: [] })),
+        getProducts({ size: 8 }).catch(() => ({ content: [] })),
+      ]);
 
-    fetchHomeData();
+      setCategories(Array.isArray(categoryList) ? categoryList : []);
+      setFeatured(featuredPage?.content || []);
+      setTrending(trendingPage?.content || []);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  // ==========================================================
-  // AUTO SLIDER
-  // ==========================================================
-
   useEffect(() => {
-    if (featured.length <= 1) {
-      return;
-    }
+    fetchHomeData();
+  }, [fetchHomeData]);
+
+  // Auto Slider for Featured Banners
+  useEffect(() => {
+    if (featured.length <= 1) return;
 
     const interval = setInterval(() => {
       const nextIndex = (currentIndex + 1) % featured.length;
-      scrollRef.current?.scrollTo({
-        x: nextIndex * width,
+      bannerScrollRef.current?.scrollTo({
+        x: nextIndex * (SCREEN_WIDTH - 32),
         animated: true,
       });
       setCurrentIndex(nextIndex);
-    }, 4000);
+    }, 4500);
 
     return () => clearInterval(interval);
-  }, [currentIndex, featured]);
+  }, [currentIndex, featured.length]);
 
-  // ==========================================================
-  // BANNER SCROLL HANDLER
-  // ==========================================================
-
-  const handleScroll = (event) => {
+  const handleBannerScroll = (event) => {
     const offset = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offset / width);
-    setCurrentIndex(index);
+    const index = Math.round(offset / (SCREEN_WIDTH - 32));
+    if (index !== currentIndex && index >= 0 && index < featured.length) {
+      setCurrentIndex(index);
+    }
   };
 
-  // ==========================================================
-  // LOADING SCREEN
-  // ==========================================================
-
-  if (loading) {
-    return (
-      <LinearGradient
-        colors={['#141E30', '#243B55']}
-        style={styles.loader}
-      >
-        <ActivityIndicator size="large" color="#FFFFFF" />
-        <Text style={styles.loadingText}>
-          Preparing your shopping experience...
-        </Text>
-      </LinearGradient>
-    );
-  }
-
-  // ==========================================================
-  // MAIN UI
-  // ==========================================================
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchHomeData();
+  };
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent
+      />
 
-      {/* ======================================================
-          HEADER
-          ====================================================== */}
-
-      <LinearGradient
-        colors={['#141E30', '#243B55']}
-        style={styles.header}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 90 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
-
-        <View style={styles.headerRow}>
-
-          <View>
-
-            <Text style={styles.welcome}>
-              Hello 👋
-            </Text>
-
-            <Text style={styles.title}>
-              Shop Smart, Live Better
-            </Text>
-
-          </View>
-
-        </View>
-
-        {/* ====================================================
-            SEARCH
-            ==================================================== */}
-
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={styles.searchBox}
-          onPress={() => navigation.navigate('Search')}
+        {/* ===================================================
+            HEADER & SEARCH
+            =================================================== */}
+        <LinearGradient
+          colors={colors.heroGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.heroHeader,
+            {
+              paddingTop: insets.top + 12,
+              borderBottomLeftRadius: radius['3xl'],
+              borderBottomRightRadius: radius['3xl'],
+            },
+          ]}
         >
-
-          <Ionicons name="search" size={22} color="#667085" />
-
-          <Text style={styles.searchText}>
-            Search products...
-          </Text>
-
-        </TouchableOpacity>
-
-      </LinearGradient>
-
-      {/* ======================================================
-          FEATURED PRODUCTS BANNER
-          ====================================================== */}
-
-      {featured.length > 0 && (
-        <>
-          <ScrollView
-            ref={scrollRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-          >
-            {featured.map((product) => (
-              <TouchableOpacity
-                key={product.publicId}
-                activeOpacity={0.9}
-                onPress={() =>
-                  navigation.navigate('SelectedProduct', {
-                    id: product.publicId,
-                  })
-                }
-              >
-                <Image
-                  source={{ uri: primaryImage(product) }}
-                  resizeMode="cover"
-                  style={styles.banner}
+          {/* Top Brand Bar */}
+          <View style={styles.brandRow}>
+            <View style={styles.brandLeft}>
+              <View style={styles.logoBadge}>
+                <AppImage
+                  source={require('../../assets/clogo.png')}
+                  style={styles.logoImage}
+                  contentFit="contain"
                 />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <View style={styles.pagination}>
-            {featured.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dot,
-                  currentIndex === index && styles.activeDot,
-                ]}
-              />
-            ))}
-          </View>
-        </>
-      )}
-
-      {/* ======================================================
-          CATEGORY HEADER
-          ====================================================== */}
-
-      <View style={styles.sectionHeader}>
-
-        <Text style={styles.sectionTitle}>
-          Categories
-        </Text>
-
-        <TouchableOpacity onPress={() => navigation.navigate('Products')}>
-          <Text style={styles.viewAll}>
-            View All
-          </Text>
-        </TouchableOpacity>
-
-      </View>
-
-      {/* ======================================================
-          CATEGORY CARDS
-          ====================================================== */}
-
-      <View style={styles.categoryGrid}>
-
-        {categories.map((category, index) => {
-          const preset = presetForCategory(category);
-
-          return (
-            <TouchableOpacity
-              key={category.publicId || index}
-              activeOpacity={0.85}
-              onPress={() =>
-                navigation.navigate(preset.screen, {
-                  slug: category.slug,
-                  title: category.name,
-                })
-              }
-            >
-
-              <LinearGradient
-                colors={preset.colors}
-                style={styles.categoryCard}
-              >
-
-                <View style={styles.iconContainer}>
-
-                  <MaterialCommunityIcons
-                    name={preset.icon}
-                    size={36}
-                    color="#111827"
-                  />
-
-                </View>
-
-                <Text style={styles.categoryText}>
-                  {category.name}
+              </View>
+              <View style={styles.brandTextWrap}>
+                <Text style={[styles.brandName, { fontWeight: typography.weights.black }]}>
+                  sdCart
                 </Text>
-
-              </LinearGradient>
-
-            </TouchableOpacity>
-          );
-        })}
-
-      </View>
-
-      {/* ======================================================
-          FEATURE OFFER CARD
-          ====================================================== */}
-
-      {featured.length > 0 && (
-        <TouchableOpacity
-          activeOpacity={0.95}
-          onPress={() =>
-            navigation.navigate('SelectedProduct', {
-              id: featured[0].publicId,
-            })
-          }
-        >
-          <View style={styles.featureCard}>
-
-            <Image
-              source={{ uri: primaryImage(featured[0]) }}
-              resizeMode="cover"
-              style={styles.featureImage}
-            />
-
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.75)']}
-              style={styles.overlay}
-            />
-
-            <View style={styles.featureContent}>
-
-              <Text style={styles.featureTitle}>
-                Special Offers
-              </Text>
-
-              <Text style={styles.featureSubtitle}>
-                {featured[0].name || 'Grab the best deals today'}
-              </Text>
-
+                <Text style={styles.brandTagline}>Premium Shopping</Text>
+              </View>
             </View>
 
+            <AnimatedPressable
+              onPress={() => navigation.navigate('Cart')}
+              style={styles.headerCartButton}
+              haptic="selection"
+              accessibilityLabel="Cart"
+            >
+              <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
+              <AnimatedBadge count={totalQuantity} style={styles.headerCartBadge} />
+            </AnimatedPressable>
           </View>
-        </TouchableOpacity>
-      )}
 
-    </ScrollView>
+          {/* Search Trigger */}
+          <AnimatedPressable
+            onPress={() => navigation.navigate('Search')}
+            scaleTo={0.98}
+            haptic="light"
+            style={[
+              styles.searchTrigger,
+              {
+                backgroundColor: colors.surface,
+                borderRadius: radius.xl,
+                ...shadows.md,
+              },
+            ]}
+          >
+            <Ionicons name="search" size={20} color={colors.primary} />
+            <Text style={[styles.searchText, { color: colors.textMuted }]}>
+              Search for products, brands & more...
+            </Text>
+            <View style={[styles.searchMic, { backgroundColor: colors.surfaceSubtle }]}>
+              <Ionicons name="sparkles" size={16} color={colors.accent} />
+            </View>
+          </AnimatedPressable>
+        </LinearGradient>
+
+        {/* ===================================================
+            FEATURED BANNER CAROUSEL
+            =================================================== */}
+        {loading ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+            <ShimmerLoader height={180} borderRadius={radius['2xl']} />
+          </View>
+        ) : featured.length > 0 ? (
+          <View style={styles.carouselSection}>
+            <ScrollView
+              ref={bannerScrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleBannerScroll}
+              decelerationRate="fast"
+              snapToInterval={SCREEN_WIDTH - 32}
+              snapToAlignment="center"
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+            >
+              {featured.map((item) => (
+                <AnimatedPressable
+                  key={item.publicId || item.id}
+                  onPress={() =>
+                    navigation.navigate('SelectedProduct', {
+                      id: item.publicId || item.id,
+                    })
+                  }
+                  scaleTo={0.98}
+                  style={[
+                    styles.bannerCard,
+                    {
+                      width: SCREEN_WIDTH - 32,
+                      borderRadius: radius['2xl'],
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      ...shadows.md,
+                    },
+                  ]}
+                >
+                  <AppImage
+                    source={primaryImage(item)}
+                    style={styles.bannerImage}
+                    contentFit="cover"
+                  />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(15, 23, 42, 0.85)']}
+                    style={styles.bannerOverlay}
+                  >
+                    <View style={styles.bannerBadge}>
+                      <Text style={styles.bannerBadgeText}>FEATURED DEAL</Text>
+                    </View>
+                    <Text style={styles.bannerTitle} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.bannerSubtitle}>
+                      Grab special offers today · Limited stock
+                    </Text>
+                  </LinearGradient>
+                </AnimatedPressable>
+              ))}
+            </ScrollView>
+
+            {/* Pagination Indicators */}
+            <View style={styles.paginationRow}>
+              {featured.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.pageDot,
+                    {
+                      backgroundColor:
+                        currentIndex === index ? colors.accent : colors.border,
+                      width: currentIndex === index ? 24 : 8,
+                      borderRadius: radius.full,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {/* ===================================================
+            CATEGORIES SECTION
+            =================================================== */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontWeight: typography.weights.extrabold }]}>
+              Shop by Category
+            </Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+              Explore our curated selections
+            </Text>
+          </View>
+
+          <AnimatedPressable
+            onPress={() => navigation.navigate('Products')}
+            scaleTo={0.94}
+            haptic="selection"
+          >
+            <Text style={[styles.viewAllText, { color: colors.primary, fontWeight: typography.weights.bold }]}>
+              View All →
+            </Text>
+          </AnimatedPressable>
+        </View>
+
+        {loading ? (
+          <View style={styles.categoryGrid}>
+            {[1, 2, 3, 4].map((i) => (
+              <View key={i} style={{ width: (SCREEN_WIDTH - 44) / 2, marginBottom: 12 }}>
+                <ShimmerLoader height={100} borderRadius={radius.xl} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.categoryGrid}>
+            {categories.slice(0, 4).map((category, index) => {
+              const preset = presetForCategory(category);
+              return (
+                <AnimatedPressable
+                  key={category.publicId || index}
+                  onPress={() =>
+                    navigation.navigate(preset.screen, {
+                      slug: category.slug,
+                      title: category.name,
+                    })
+                  }
+                  scaleTo={0.95}
+                  haptic="selection"
+                  style={[
+                    styles.categoryCard,
+                    {
+                      width: (SCREEN_WIDTH - 44) / 2,
+                      borderRadius: radius.xl,
+                      ...shadows.sm,
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={preset.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.categoryGradient, { borderRadius: radius.xl }]}
+                  >
+                    <View style={styles.categoryIconCircle}>
+                      <MaterialCommunityIcons
+                        name={preset.icon}
+                        size={28}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.categoryName,
+                        { fontWeight: typography.weights.bold },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {category.name}
+                    </Text>
+                  </LinearGradient>
+                </AnimatedPressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ===================================================
+            PROMOTIONAL HIGHLIGHT BANNER
+            =================================================== */}
+        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+          <LinearGradient
+            colors={['#7C3AED', '#2563EB']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.promoCard,
+              {
+                borderRadius: radius['2xl'],
+                ...shadows.md,
+              },
+            ]}
+          >
+            <View style={styles.promoContent}>
+              <View style={styles.promoBadge}>
+                <Text style={styles.promoBadgeText}>MEGA SAVINGS</Text>
+              </View>
+              <Text style={styles.promoTitle}>Up to 70% OFF</Text>
+              <Text style={styles.promoSubtitle}>Top deals across all categories</Text>
+            </View>
+            <MaterialCommunityIcons
+              name="tag-heart"
+              size={64}
+              color="rgba(255, 255, 255, 0.25)"
+            />
+          </LinearGradient>
+        </View>
+
+        {/* ===================================================
+            TRENDING PRODUCTS GRID
+            =================================================== */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontWeight: typography.weights.extrabold }]}>
+              Trending Now 🔥
+            </Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+              Popular items shoppers love
+            </Text>
+          </View>
+
+          <AnimatedPressable
+            onPress={() => navigation.navigate('Products')}
+            scaleTo={0.94}
+            haptic="selection"
+          >
+            <Text style={[styles.viewAllText, { color: colors.primary, fontWeight: typography.weights.bold }]}>
+              Explore →
+            </Text>
+          </AnimatedPressable>
+        </View>
+
+        <View style={styles.productsGrid}>
+          {loading
+            ? [1, 2, 3, 4].map((i) => (
+                <ProductCardSkeleton key={i} width={layout.cardWidth} />
+              ))
+            : trending.map((item) => (
+                <ProductCard
+                  key={item.publicId || item.id}
+                  product={item}
+                  cardWidth={layout.cardWidth}
+                />
+              ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
-// ============================================================
-// STYLES
-// ============================================================
-
 const styles = StyleSheet.create({
-
-  // ==========================================================
-  // ROOT
-  // ==========================================================
-
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
-
-  // ==========================================================
-  // HEADER
-  // ==========================================================
-
-  header: {
-    paddingTop: 55,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+  heroHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
-
-  headerRow: {
+  brandRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  brandLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
-
-  welcome: {
-    fontSize: 15,
-    color: '#CBD5E1',
-    fontWeight: '500',
-  },
-
-  title: {
-    marginTop: 6,
-
-    fontSize: 27,
-
-    fontWeight: '900',
-
-    color: '#FFFFFF',
-
-    letterSpacing: 0.3,
-  },
-
-  // ==========================================================
-  // SEARCH
-  // ==========================================================
-
-  searchBox: {
-    height: 54,
-
+  logoBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
-
-    borderRadius: 18,
-
-    marginTop: 25,
-
-    flexDirection: 'row',
-
     alignItems: 'center',
-
-    paddingHorizontal: 18,
-
-    shadowColor: '#000',
-
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-
-    shadowOpacity: 0.08,
-
-    shadowRadius: 8,
-
-    elevation: 4,
-  },
-
-  searchText: {
-    marginLeft: 12,
-
-    color: '#98A2B3',
-
-    fontSize: 15,
-
-    fontWeight: '500',
-  },
-
-  // ==========================================================
-  // BANNER SLIDER
-  // ==========================================================
-
-  banner: {
-    width: width - 32,
-
-    height: 190,
-
-    marginHorizontal: 16,
-
-    marginTop: 20,
-
-    borderRadius: 26,
-  },
-
-  pagination: {
-    flexDirection: 'row',
-
     justifyContent: 'center',
-
-    alignItems: 'center',
-
-    marginTop: 12,
+    padding: 3,
   },
-
-  dot: {
-    width: 8,
-
-    height: 8,
-
-    borderRadius: 10,
-
-    backgroundColor: '#CBD5E1',
-
-    marginHorizontal: 4,
-  },
-
-  activeDot: {
-    width: 28,
-
-    backgroundColor: '#FF6B00',
-  },
-
-  // ==========================================================
-  // SECTION HEADER
-  // ==========================================================
-
-  sectionHeader: {
-    flexDirection: 'row',
-
-    justifyContent: 'space-between',
-
-    alignItems: 'center',
-
-    marginHorizontal: 20,
-
-    marginTop: 32,
-  },
-
-  sectionTitle: {
-    fontSize: 23,
-
-    fontWeight: '900',
-
-    color: '#101828',
-  },
-
-  viewAll: {
-    fontSize: 14,
-
-    fontWeight: '700',
-
-    color: '#FF6B00',
-  },
-
-  // ==========================================================
-  // CATEGORY
-  // ==========================================================
-
-  categoryGrid: {
-    flexDirection: 'row',
-
-    flexWrap: 'wrap',
-
-    justifyContent: 'center',
-
-    marginTop: 18,
-  },
-
-  categoryCard: {
-    width: (width - 70) / 2,
-
-    height: 135,
-
-    margin: 8,
-
-    borderRadius: 26,
-
-    justifyContent: 'center',
-
-    alignItems: 'center',
-
-    shadowColor: '#000',
-
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-
-    shadowOpacity: 0.15,
-
-    shadowRadius: 10,
-
-    elevation: 6,
-  },
-
-  iconContainer: {
-    width: 64,
-
-    height: 64,
-
-    borderRadius: 32,
-
-    backgroundColor: '#FFFFFF',
-
-    justifyContent: 'center',
-
-    alignItems: 'center',
-  },
-
-  categoryText: {
-    marginTop: 12,
-
-    fontSize: 16,
-
-    fontWeight: '800',
-
-    color: '#FFFFFF',
-  },
-
-  // ==========================================================
-  // FEATURE OFFER CARD
-  // ==========================================================
-
-  featureCard: {
-    height: 180,
-
-    marginHorizontal: 20,
-
-    marginTop: 25,
-
-    marginBottom: 30,
-
-    borderRadius: 28,
-
-    overflow: 'hidden',
-  },
-
-  featureImage: {
+  logoImage: {
     width: '100%',
-
     height: '100%',
   },
-
-  overlay: {
-    position: 'absolute',
-
-    left: 0,
-
-    right: 0,
-
-    top: 0,
-
-    bottom: 0,
-  },
-
-  featureContent: {
-    position: 'absolute',
-
-    left: 22,
-
-    bottom: 22,
-  },
-
-  featureTitle: {
-    fontSize: 24,
-
-    fontWeight: '900',
-
-    color: '#FFFFFF',
-  },
-
-  featureSubtitle: {
-    marginTop: 6,
-
-    fontSize: 14,
-
-    color: '#E5E7EB',
-
-    fontWeight: '500',
-  },
-
-  // ==========================================================
-  // LOADING
-  // ==========================================================
-
-  loader: {
-    flex: 1,
-
+  brandTextWrap: {
     justifyContent: 'center',
-
-    alignItems: 'center',
   },
-
-  loadingText: {
-    marginTop: 15,
-
+  brandName: {
+    fontSize: 20,
     color: '#FFFFFF',
-
-    fontSize: 16,
-
-    fontWeight: '700',
+    letterSpacing: -0.5,
   },
-
+  brandTagline: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: -2,
+  },
+  headerCartButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  headerCartBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+  },
+  searchTrigger: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  searchText: {
+    flex: 1,
+    fontSize: 14,
+  },
+  searchMic: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselSection: {
+    marginTop: 18,
+  },
+  bannerCard: {
+    height: 180,
+    overflow: 'hidden',
+    borderWidth: 1,
+    position: 'relative',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 16,
+    justifyContent: 'flex-end',
+  },
+  bannerBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  bannerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  bannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  bannerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+  },
+  pageDot: {
+    height: 6,
+    transition: 'all 0.2s',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    marginTop: 24,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    letterSpacing: -0.3,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  viewAllText: {
+    fontSize: 13,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  categoryCard: {
+    height: 96,
+    marginBottom: 12,
+  },
+  categoryGradient: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  categoryIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
+  promoCard: {
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  promoContent: {
+    flex: 1,
+  },
+  promoBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  promoBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  promoTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  promoSubtitle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  productsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
 });

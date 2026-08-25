@@ -1,1564 +1,491 @@
-// screens/AccountScreen.js
-
-import React, {
-  useCallback,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
-
+// src/screens/AccountScreen.js
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   Alert,
   StatusBar,
+  Switch,
 } from 'react-native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  Ionicons,
-} from '@expo/vector-icons';
-
-import {
-  useFocusEffect,
-  useNavigation,
-} from '@react-navigation/native';
-
-import * as Animatable from 'react-native-animatable';
-
-import {
-  useAuth,
-} from '../context/AuthContext';
-
-
-
-/* =================================================
-    CONSTANTS
-================================================= */
-
-
-const PRIMARY_COLOR = '#FF6B00';
-
-const BACKGROUND_COLOR = '#F8F9FB';
-
-const CARD_COLOR = '#FFFFFF';
-
-
-
-
-/* =================================================
-    ACCOUNT SCREEN
-================================================= */
-
-
-export default function AccountScreen(){
-
-
-  const navigation =
-    useNavigation();
-
-
-
-  const {
-    userInfo,
-    logout,
-    authLoading,
-    refreshUserInfo,
-    isAdmin,
-  } =
-    useAuth();
-
-
-
-
-  /* ===============================================
-      STATES
-  =============================================== */
-
-
-  const [
-    refreshing,
-    setRefreshing
-  ] =
-  useState(false);
-
-
-
-  const [
-    loadingButton,
-    setLoadingButton
-  ] =
-  useState(null);
-
-
-
-  const [
-    logoutLoading,
-    setLogoutLoading
-  ] =
-  useState(false);
-
-
-
-  const containerRef =
-    useRef(null);
-
-
-
-
-
-  /* ===============================================
-      HEADER CONFIGURATION
-  =============================================== */
-
-
-  useLayoutEffect(()=>{
-
-
-    navigation.setOptions({
-
-
-      headerShown:false,
-
-
-    });
-
-
-  },[
-    navigation
-  ]);
-
-
-
-
-
-
-
-  /* ===============================================
-      SCREEN REFRESH
-  =============================================== */
-
-
-  const handleRefresh =
-    async()=>{
-
-
-      try{
-
-
-        setRefreshing(true);
-
-
-
-        if(
-          containerRef.current
-        ){
-
-          containerRef.current.fadeIn(
-            500
-          );
-
-        }
-
-
-
-        await refreshUserInfo?.();
-
-
-
-      }
-      catch(error){
-
-
-        console.log(
-          "Refresh user error:",
-          error
-        );
-
-
-      }
-      finally{
-
-
-        setRefreshing(false);
-
-
-      }
-
-
-    };
-
-
-
-
-
-
-
-
-
-  /* ===============================================
-      LOGOUT HANDLER
-  =============================================== */
-
-
-  const handleLogout =
-    ()=>{
-
-
-      Alert.alert(
-
-        "Logout",
-
-        "Are you sure you want to logout?",
-
-
-        [
-
-
-          {
-
-            text:"Cancel",
-
-            style:"cancel",
-
-          },
-
-
-          {
-
-
-            text:"Logout",
-
-
-            style:"destructive",
-
-
-            onPress:async()=>{
-
-
-              try{
-
-
-                setLogoutLoading(true);
-
-
-                await logout();
-
-
-              }
-              catch(error){
-
-
-                Alert.alert(
-
-                  "Error",
-
-                  "Unable to logout"
-
-                );
-
-
-              }
-              finally{
-
-
-                setLogoutLoading(false);
-
-
-              }
-
-
-            }
-
-
-          }
-
-
-        ]
-
-      );
-
-
-    };
-
-
-
-
-
-
-
-
-  /* ===============================================
-      MENU ITEM COMPONENT
-  =============================================== */
-
-
-  const AccountMenuItem =
-  ({
-    id,
-    icon,
-    title,
-    subtitle,
-    color,
-    screen,
-    delay,
-  })=>{
-
-
-    return(
-
-
-      <Animatable.View
-
-
-        animation="fadeInUp"
-
-
-        delay={delay}
-
-
-        duration={700}
-
-
-        useNativeDriver
-
-
-
-      >
-
-
-
-        <View
-
-          style={
-            styles.menuCard
-          }
-
-        >
-
-
-
-
-          <View
-
-            style={
-
-              [
-                styles.menuIconBox,
-
-                {
-                  backgroundColor:
-                  `${color}18`
-                }
-
-              ]
-
-            }
-
-          >
-
-
-            <Ionicons
-
-              name={icon}
-
-              size={25}
-
-              color={color}
-
-            />
-
-
-          </View>
-
-
-
-
-
-
-
-          <View
-
-            style={
-              styles.menuContent
-            }
-
-          >
-
-
-            <Text
-
-              style={
-                styles.menuTitle
-              }
-
-            >
-
-              {title}
-
-
-            </Text>
-
-
-
-            <Text
-
-              style={
-                styles.menuSubtitle
-              }
-
-            >
-
-              {subtitle}
-
-
-            </Text>
-
-
-          </View>
-
-
-
-
-
-
-
-          <TouchableOpacity
-
-
-            activeOpacity={0.85}
-
-
-            style={
-              styles.viewButton
-            }
-
-
-
-            disabled={
-              loadingButton===id
-            }
-
-
-
-            onPress={async()=>{
-
-
-              try{
-
-
-                setLoadingButton(id);
-
-
-                navigation.navigate(
-                  screen
-                );
-
-
-              }
-
-              finally{
-
-
-                setLoadingButton(null);
-
-
-              }
-
-
-            }}
-
-
-
-          >
-
-
-
-            {
-              loadingButton===id
-
-              ?
-
-              (
-
-                <ActivityIndicator
-
-                  size="small"
-
-                  color="#FFFFFF"
-
-                />
-
-              )
-
-              :
-
-              (
-
-                <Ionicons
-
-                  name="chevron-forward"
-
-                  size={20}
-
-                  color="#FFFFFF"
-
-                />
-
-              )
-
-            }
-
-
-
-          </TouchableOpacity>
-
-
-
-
-
-        </View>
-
-
-
-      </Animatable.View>
-
-
-    );
-
-
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useAuth } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
+import { useCart } from '../context/CartContext';
+import { useTheme } from '../theme';
+import { AnimatedPressable } from '../components/common/AnimatedPressable';
+import { ScreenHeader } from '../components/common/ScreenHeader';
+import { useToast } from '../context/ToastContext';
+
+export default function AccountScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const { colors, typography, radius, shadows, isDark, toggleTheme } = useTheme();
+  const { userInfo, logout, refreshUserInfo, isAdmin } = useAuth();
+  const { wishlistItems } = useWishlist();
+  const { totalQuantity } = useCart();
+  const { showSuccess, showError } = useToast();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshUserInfo?.();
+    } finally {
+      setRefreshing(false);
+    }
   };
-    /* ===============================================
-      LOADING STATE
-  =============================================== */
 
-
-  if(authLoading){
-
-
-    return(
-
-
-      <SafeAreaView
-        style={styles.safeArea}
-      >
-
-        <View
-          style={styles.center}
-        >
-
-          <ActivityIndicator
-
-            size="large"
-
-            color={PRIMARY_COLOR}
-
-          />
-
-
-          <Text
-
-            style={styles.loadingText}
-
-          >
-
-            Loading account...
-
-
-          </Text>
-
-
-        </View>
-
-
-      </SafeAreaView>
-
-
-    );
-
-
-  }
-
-
-
-
-
-  /* ===============================================
-      USER NOT FOUND
-  =============================================== */
-
-
-  if(!userInfo){
-
-
-    return(
-
-
-      <SafeAreaView
-
-        style={styles.safeArea}
-
-      >
-
-
-        <View
-
-          style={styles.center}
-
-        >
-
-
-          <Ionicons
-
-            name="person-circle-outline"
-
-            size={90}
-
-            color="#D0D5DD"
-
-          />
-
-
-          <Text
-
-            style={styles.errorTitle}
-
-          >
-
-            User not logged in
-
-
-          </Text>
-
-
-
-          <TouchableOpacity
-
-            style={styles.loginButton}
-
-            onPress={()=>
-              navigation.navigate(
-                "Login"
-              )
-            }
-
-          >
-
-
-            <Text
-
-              style={styles.loginText}
-
-            >
-
-              Login
-
-
-            </Text>
-
-
-          </TouchableOpacity>
-
-
-        </View>
-
-
-      </SafeAreaView>
-
-
-    );
-
-
-  }
-
-
-
-
-
-
-
-
-  /* ===============================================
-      MAIN UI
-  =============================================== */
-
-
-  return(
-
-
-    <SafeAreaView
-
-      style={styles.safeArea}
-
-    >
-
-
-      <StatusBar
-
-        barStyle="dark-content"
-
-        backgroundColor={BACKGROUND_COLOR}
-
-      />
-
-
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out of sdCart?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          setLoggingOut(true);
+          try {
+            await logout();
+            showSuccess('Signed out successfully');
+          } catch (e) {
+            showError('Unable to sign out');
+          } finally {
+            setLoggingOut(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const getInitials = (name, email) => {
+    if (name) {
+      const parts = name.trim().split(' ');
+      if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      return name.slice(0, 2).toUpperCase();
+    }
+    if (email) return email.slice(0, 2).toUpperCase();
+    return 'SD';
+  };
+
+  const displayName =
+    userInfo?.name ||
+    (userInfo?.firstName && userInfo?.lastName
+      ? `${userInfo.firstName} ${userInfo.lastName}`
+      : userInfo?.email?.split('@')[0] || 'sdCart Member');
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+
+      <ScreenHeader title="Account & Settings" showCart={false} />
 
       <ScrollView
-
-
         showsVerticalScrollIndicator={false}
-
-
-        contentContainerStyle={
-          styles.container
-        }
-
-
-
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
         refreshControl={
-
-
           <RefreshControl
-
-
-            refreshing={
-              refreshing
-            }
-
-
-            onRefresh={
-              handleRefresh
-            }
-
-
-            colors={[
-              PRIMARY_COLOR
-            ]}
-
-
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
-
-
         }
-
-
       >
-
-
-
-
-        <Animatable.View
-
-
-          ref={containerRef}
-
-
-          animation="fadeIn"
-
-
-          duration={600}
-
-
-
+        {/* ================= USER PROFILE CARD ================= */}
+        <View
+          style={[
+            styles.profileCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderRadius: radius['2xl'],
+              ...shadows.sm,
+            },
+          ]}
         >
-
-
-
-
-
-
-          {/* ============================
-              PROFILE HEADER
-          ============================ */}
-
-
-
-          <View
-
-            style={styles.profileCard}
-
-          >
-
-
-
-
-            <View
-
-              style={styles.avatarContainer}
-
-            >
-
-
-              <Ionicons
-
-                name="person"
-
-                size={45}
-
-                color="#FFFFFF"
-
-              />
-
-
-            </View>
-
-
-
-
-
-
-            <View
-
-              style={styles.profileInfo}
-
-            >
-
-
-              <Text
-
-                style={styles.profileName}
-
-              >
-
-                {userInfo.firstName}
-
-                {" "}
-
-                {userInfo.lastName || ""}
-
-
-              </Text>
-
-
-
-
-              <Text
-
-                style={styles.profileEmail}
-
-              >
-
-                {userInfo.email}
-
-
-              </Text>
-
-
-
-
-              <View
-
-                style={styles.memberBadge}
-
-              >
-
-
-                <Ionicons
-
-                  name="shield-checkmark"
-
-                  size={14}
-
-                  color={PRIMARY_COLOR}
-
-                />
-
-
-                <Text
-
-                  style={styles.memberText}
-
-                >
-
-                  sdCart Member
-
-
-                </Text>
-
-
-              </View>
-
-
-
-            </View>
-
-
-
-
+          <View style={[styles.avatarBox, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.avatarText, { fontWeight: typography.weights.black }]}>
+              {getInitials(userInfo?.name, userInfo?.email)}
+            </Text>
           </View>
 
-
-
-
-
-
-
-
-          {/* ============================
-              ACCOUNT MENU
-          ============================ */}
-
-
-
-          <Text
-
-            style={styles.sectionTitle}
-
-          >
-
-            My Account
-
-
-          </Text>
-
-
-
-
-
-
-
-          <AccountMenuItem
-
-            id="account"
-
-            icon="person-outline"
-
-            title="Account Information"
-
-            subtitle="Manage your personal details"
-
-            color="#2563EB"
-
-            screen="AccountInfo"
-
-            delay={100}
-
-          />
-
-
-
-
-
-
-          <AccountMenuItem
-
-            id="orders"
-
-            icon="cube-outline"
-
-            title="My Orders"
-
-            subtitle="Track your previous purchases"
-
-            color="#9333EA"
-
-            screen="Orders"
-
-            delay={200}
-
-          />
-
-
-
-
-
-
-
-          <AccountMenuItem
-
-            id="wishlist"
-
-            icon="heart-outline"
-
-            title="Wishlist"
-
-            subtitle="Your saved products"
-
-            color="#E11D48"
-
-            screen="Wishlist"
-
-            delay={300}
-
-          />
-
-
-
-
-
-
-
-          <AccountMenuItem
-
-            id="address"
-
-            icon="location-outline"
-
-            title="Delivery Address"
-
-            subtitle="Manage delivery locations"
-
-            color="#16A34A"
-
-            screen="DeliveryAddress"
-
-            delay={400}
-
-          />
-          {isAdmin ? (
-
-            <AccountMenuItem
-
-              id="admin"
-
-              icon="shield-checkmark-outline"
-
-              title="Admin Dashboard"
-
-              subtitle="Manage products, orders and users"
-
-              color="#7C3AED"
-
-              screen="Admin"
-
-              delay={500}
-
-            />
-
-          ) : null}
-
-
-
-
-
-
-
-          {/* ============================
-              LOGOUT
-          ============================ */}
-
-
-
-
-          <TouchableOpacity
-
-
-            activeOpacity={0.9}
-
-
-            style={styles.logoutButton}
-
-
-            onPress={handleLogout}
-
-
-            disabled={logoutLoading}
-
-
-
-          >
-
-
-            {
-
-              logoutLoading
-
-              ?
-
-              (
-
-                <ActivityIndicator
-
-                  color="#FFFFFF"
-
-                />
-
-              )
-
-
-              :
-
-              (
-
-                <>
-
-
-                  <Ionicons
-
-                    name="log-out-outline"
-
-                    size={22}
-
-                    color="#FFFFFF"
-
-                  />
-
-
-                  <Text
-
-                    style={styles.logoutText}
-
-                  >
-
-                    Logout
-
-
+          <View style={styles.profileDetails}>
+            <View style={styles.nameRow}>
+              <Text
+                style={[
+                  styles.profileName,
+                  { color: colors.text, fontWeight: typography.weights.extrabold },
+                ]}
+                numberOfLines={1}
+              >
+                {displayName}
+              </Text>
+              {isAdmin && (
+                <View style={[styles.adminPill, { backgroundColor: colors.accentMuted }]}>
+                  <Text style={[styles.adminPillText, { color: colors.accent, fontWeight: typography.weights.bold }]}>
+                    ADMIN
                   </Text>
+                </View>
+              )}
+            </View>
 
+            <Text style={[styles.profileEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+              {userInfo?.email || 'Logged in user'}
+            </Text>
 
-                </>
+            {userInfo?.phone ? (
+              <Text style={[styles.profilePhone, { color: colors.textMuted }]}>
+                {userInfo.phone}
+              </Text>
+            ) : null}
+          </View>
+        </View>
 
-
-              )
-
-            }
-
-
-          </TouchableOpacity>
-
-
-
-
-
-
-
-
-          <Text
-
-            style={styles.footer}
-
+        {/* ================= QUICK STAT CARDS ================= */}
+        <View style={styles.statsRow}>
+          <AnimatedPressable
+            onPress={() => navigation.navigate('Orders')}
+            scaleTo={0.96}
+            haptic="selection"
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+                ...shadows.xs,
+              },
+            ]}
           >
+            <View style={[styles.statIconCircle, { backgroundColor: colors.primaryMuted }]}>
+              <Ionicons name="receipt" size={22} color={colors.primary} />
+            </View>
+            <Text style={[styles.statTitle, { color: colors.text, fontWeight: typography.weights.bold }]}>
+              My Orders
+            </Text>
+            <Text style={[styles.statSub, { color: colors.textMuted }]}>
+              Track & history
+            </Text>
+          </AnimatedPressable>
 
-            sdCart • Shopping made simple
+          <AnimatedPressable
+            onPress={() => navigation.navigate('Wishlist')}
+            scaleTo={0.96}
+            haptic="selection"
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+                ...shadows.xs,
+              },
+            ]}
+          >
+            <View style={[styles.statIconCircle, { backgroundColor: colors.dangerMuted }]}>
+              <Ionicons name="heart" size={22} color={colors.danger} />
+            </View>
+            <Text style={[styles.statTitle, { color: colors.text, fontWeight: typography.weights.bold }]}>
+              Wishlist
+            </Text>
+            <Text style={[styles.statSub, { color: colors.textMuted }]}>
+              {wishlistItems.length} saved
+            </Text>
+          </AnimatedPressable>
+        </View>
 
-
+        {/* ================= MENU GROUP 1: ACCOUNT & ORDERS ================= */}
+        <View style={styles.menuGroup}>
+          <Text style={[styles.groupLabel, { color: colors.textMuted, fontWeight: typography.weights.bold }]}>
+            ACCOUNT SETTINGS
           </Text>
 
+          <View
+            style={[
+              styles.menuCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+              },
+            ]}
+          >
+            <AnimatedPressable
+              onPress={() => navigation.navigate('AccountInfo')}
+              scaleTo={0.98}
+              haptic="selection"
+              style={styles.menuItem}
+            >
+              <View style={[styles.menuIconWrap, { backgroundColor: colors.primaryMuted }]}>
+                <Ionicons name="person-outline" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.menuTextWrap}>
+                <Text style={[styles.menuTitle, { color: colors.text, fontWeight: typography.weights.semibold }]}>
+                  Personal Profile
+                </Text>
+                <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+                  View account info & email
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </AnimatedPressable>
 
+            <View style={[styles.menuDivider, { backgroundColor: colors.borderLight }]} />
 
+            <AnimatedPressable
+              onPress={() => navigation.navigate('DeliveryAddress', { selectMode: false })}
+              scaleTo={0.98}
+              haptic="selection"
+              style={styles.menuItem}
+            >
+              <View style={[styles.menuIconWrap, { backgroundColor: colors.successMuted }]}>
+                <MaterialCommunityIcons name="map-marker-outline" size={20} color={colors.success} />
+              </View>
+              <View style={styles.menuTextWrap}>
+                <Text style={[styles.menuTitle, { color: colors.text, fontWeight: typography.weights.semibold }]}>
+                  Delivery Addresses
+                </Text>
+                <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+                  Manage shipping locations
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </AnimatedPressable>
 
+            {isAdmin && (
+              <>
+                <View style={[styles.menuDivider, { backgroundColor: colors.borderLight }]} />
+                <AnimatedPressable
+                  onPress={() => navigation.navigate('Admin')}
+                  scaleTo={0.98}
+                  haptic="selection"
+                  style={styles.menuItem}
+                >
+                  <View style={[styles.menuIconWrap, { backgroundColor: colors.accentMuted }]}>
+                    <MaterialCommunityIcons name="shield-account" size={20} color={colors.accent} />
+                  </View>
+                  <View style={styles.menuTextWrap}>
+                    <Text style={[styles.menuTitle, { color: colors.text, fontWeight: typography.weights.semibold }]}>
+                      Admin Dashboard
+                    </Text>
+                    <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+                      Products & catalog management
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </AnimatedPressable>
+              </>
+            )}
+          </View>
+        </View>
 
-        </Animatable.View>
+        {/* ================= MENU GROUP 2: PREFERENCES ================= */}
+        <View style={styles.menuGroup}>
+          <Text style={[styles.groupLabel, { color: colors.textMuted, fontWeight: typography.weights.bold }]}>
+            APP PREFERENCES
+          </Text>
 
+          <View
+            style={[
+              styles.menuCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+              },
+            ]}
+          >
+            <View style={styles.menuItem}>
+              <View style={[styles.menuIconWrap, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}>
+                <Ionicons name={isDark ? 'moon' : 'sunny'} size={20} color={isDark ? '#FBBF24' : '#F59E0B'} />
+              </View>
+              <View style={styles.menuTextWrap}>
+                <Text style={[styles.menuTitle, { color: colors.text, fontWeight: typography.weights.semibold }]}>
+                  Dark Mode
+                </Text>
+                <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+                  {isDark ? 'Dark theme active' : 'Light theme active'}
+                </Text>
+              </View>
+              <Switch
+                value={isDark}
+                onValueChange={toggleTheme}
+                trackColor={{ false: '#CBD5E1', true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+        </View>
 
+        {/* ================= LOGOUT BUTTON ================= */}
+        <AnimatedPressable
+          onPress={handleLogout}
+          disabled={loggingOut}
+          scaleTo={0.96}
+          haptic="medium"
+          style={[
+            styles.logoutButton,
+            {
+              backgroundColor: colors.dangerMuted,
+              borderColor: isDark ? 'transparent' : '#FECACA',
+              borderRadius: radius.xl,
+            },
+          ]}
+        >
+          <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+          <Text style={[styles.logoutText, { color: colors.danger, fontWeight: typography.weights.bold }]}>
+            {loggingOut ? 'Signing out...' : 'Sign Out'}
+          </Text>
+        </AnimatedPressable>
 
+        {/* App Version Info */}
+        <Text style={[styles.versionText, { color: colors.textMuted }]}>
+          sdCart Mobile · Version 1.0.0 (2026 Edition)
+        </Text>
       </ScrollView>
-
-
-
-    </SafeAreaView>
-
-
+    </View>
   );
-
-
 }
+
 const styles = StyleSheet.create({
-
-
-  /* ===============================================
-      ROOT
-  =============================================== */
-
-
-  safeArea:{
-    flex:1,
-    backgroundColor:BACKGROUND_COLOR,
+  container: {
+    flex: 1,
   },
-
-
-  container:{
-    padding:16,
-    paddingBottom:40,
+  scrollContent: {
+    padding: 16,
   },
-
-
-
-  center:{
-    flex:1,
-    justifyContent:'center',
-    alignItems:'center',
-    backgroundColor:BACKGROUND_COLOR,
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
   },
-
-
-
-  /* ===============================================
-      LOADING / ERROR
-  =============================================== */
-
-
-  loadingText:{
-    marginTop:15,
-    fontSize:16,
-    color:'#667085',
-    fontWeight:'600',
+  avatarBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-
-
-  errorTitle:{
-    marginTop:20,
-    fontSize:20,
-    fontWeight:'800',
-    color:'#344054',
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 22,
   },
-
-
-  loginButton:{
-    marginTop:25,
-    backgroundColor:PRIMARY_COLOR,
-    paddingHorizontal:40,
-    paddingVertical:14,
-    borderRadius:30,
+  profileDetails: {
+    flex: 1,
+    marginLeft: 14,
   },
-
-
-  loginText:{
-    color:'#FFFFFF',
-    fontWeight:'700',
-    fontSize:15,
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-
-
-
-
-
-  /* ===============================================
-      PROFILE CARD
-  =============================================== */
-
-
-  profileCard:{
-    backgroundColor:CARD_COLOR,
-
-    borderRadius:24,
-
-    padding:20,
-
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    marginBottom:25,
-
-
-    shadowColor:'#000',
-
-    shadowOffset:{
-      width:0,
-      height:5,
-    },
-
-    shadowOpacity:0.08,
-
-    shadowRadius:10,
-
-    elevation:4,
+  profileName: {
+    fontSize: 17,
+    flexShrink: 1,
   },
-
-
-
-  avatarContainer:{
-    height:85,
-
-    width:85,
-
-    borderRadius:42,
-
-    backgroundColor:PRIMARY_COLOR,
-
-    justifyContent:'center',
-
-    alignItems:'center',
+  adminPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-
-
-
-
-  profileInfo:{
-    flex:1,
-
-    marginLeft:18,
+  adminPillText: {
+    fontSize: 9,
   },
-
-
-
-  profileName:{
-    fontSize:22,
-
-    fontWeight:'900',
-
-    color:'#101828',
+  profileEmail: {
+    fontSize: 13,
+    marginTop: 2,
   },
-
-
-
-  profileEmail:{
-    marginTop:5,
-
-    fontSize:13,
-
-    color:'#667085',
+  profilePhone: {
+    fontSize: 12,
+    marginTop: 2,
   },
-
-
-
-
-  memberBadge:{
-    marginTop:12,
-
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    backgroundColor:'#FFF4E8',
-
-    alignSelf:'flex-start',
-
-    paddingHorizontal:12,
-
-    paddingVertical:6,
-
-    borderRadius:20,
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
   },
-
-
-
-
-  memberText:{
-    marginLeft:5,
-
-    fontSize:12,
-
-    color:PRIMARY_COLOR,
-
-    fontWeight:'700',
+  statCard: {
+    flex: 1,
+    padding: 16,
+    borderWidth: 1,
   },
-
-
-
-
-
-
-
-  /* ===============================================
-      SECTION
-  =============================================== */
-
-
-  sectionTitle:{
-    fontSize:18,
-
-    fontWeight:'800',
-
-    color:'#101828',
-
-    marginBottom:14,
+  statIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-
-
-
-
-
-
-
-  /* ===============================================
-      MENU CARD
-  =============================================== */
-
-
-
-  menuCard:{
-    backgroundColor:'#FFFFFF',
-
-    borderRadius:20,
-
-    padding:15,
-
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    marginBottom:14,
-
-
-    shadowColor:'#000',
-
-    shadowOffset:{
-      width:0,
-      height:3,
-    },
-
-
-    shadowOpacity:0.06,
-
-
-    shadowRadius:8,
-
-
-    elevation:2,
-
+  statTitle: {
+    fontSize: 14,
   },
-
-
-
-
-
-  menuIconBox:{
-    height:50,
-
-    width:50,
-
-    borderRadius:16,
-
-    justifyContent:'center',
-
-    alignItems:'center',
+  statSub: {
+    fontSize: 12,
+    marginTop: 2,
   },
-
-
-
-
-
-
-  menuContent:{
-    flex:1,
-
-    marginLeft:14,
+  menuGroup: {
+    marginBottom: 20,
   },
-
-
-
-
-
-
-  menuTitle:{
-    fontSize:16,
-
-    fontWeight:'800',
-
-    color:'#101828',
+  groupLabel: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+    marginLeft: 4,
   },
-
-
-
-
-
-  menuSubtitle:{
-    marginTop:4,
-
-    fontSize:12,
-
-    color:'#667085',
+  menuCard: {
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-
-
-
-
-
-
-
-  viewButton:{
-    height:38,
-
-    width:38,
-
-    borderRadius:19,
-
-    backgroundColor:PRIMARY_COLOR,
-
-    justifyContent:'center',
-
-    alignItems:'center',
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
   },
-
-
-
-
-
-
-
-
-  /* ===============================================
-      LOGOUT
-  =============================================== */
-
-
-  logoutButton:{
-    marginTop:20,
-
-    height:52,
-
-    borderRadius:18,
-
-    backgroundColor:'#DC2626',
-
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    justifyContent:'center',
-
-    gap:10,
-
-
-    shadowColor:'#DC2626',
-
-    shadowOffset:{
-      width:0,
-      height:5,
-    },
-
-    shadowOpacity:0.2,
-
-    shadowRadius:8,
-
-    elevation:5,
+  menuIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-
-
-
-  logoutText:{
-    color:'#FFFFFF',
-
-    fontSize:16,
-
-    fontWeight:'800',
+  menuTextWrap: {
+    flex: 1,
+    marginLeft: 12,
   },
-
-
-
-
-
-
-
-  /* ===============================================
-      FOOTER
-  =============================================== */
-
-
-  footer:{
-    marginTop:30,
-
-    textAlign:'center',
-
-    fontSize:12,
-
-    color:'#98A2B3',
-
-    fontWeight:'600',
+  menuTitle: {
+    fontSize: 14,
   },
-
-
-
+  menuSubtitle: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  menuDivider: {
+    height: 1,
+    marginLeft: 64,
+  },
+  logoutButton: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  logoutText: {
+    fontSize: 15,
+  },
+  versionText: {
+    textAlign: 'center',
+    fontSize: 12,
+    marginTop: 20,
+  },
 });

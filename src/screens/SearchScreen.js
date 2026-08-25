@@ -1,3288 +1,459 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-  memo,
-} from 'react';
-
+// src/screens/SearchScreen.js
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   FlatList,
   TextInput,
-  Animated,
   ActivityIndicator,
-  RefreshControl,
   StatusBar,
   Keyboard,
-  Alert,
-  Image,
 } from 'react-native';
-
-import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { Ionicons } from '@expo/vector-icons';
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { getProducts } from '../services/productService';
 import { normalizeProductPage } from '../services/normalizers';
-import { useCart } from '../context/CartContext';
+import { useTheme } from '../theme';
+import { ProductCard } from '../components/common/ProductCard';
+import { AnimatedPressable } from '../components/common/AnimatedPressable';
+
+const SEARCH_HISTORY_KEY = '@sdcart_search_history';
+const SEARCH_DELAY = 400;
+
+const SUGGESTIONS = [
+  'Mobile',
+  'Laptop',
+  'Shoes',
+  'Headphones',
+  'Watch',
+  'Smart TV',
+  'Apparel',
+  'Grocery',
+];
+
+export default function SearchScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const { colors, typography, radius, shadows, layout, isDark } = useTheme();
+
+  const [searchText, setSearchText] = useState('');
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [searchHistory, setSearchHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(true);
+
+  const debounceTimer = useRef(null);
+  const abortController = useRef(null);
+  const inputRef = useRef(null);
+
+  // Load search history on mount
+  useEffect(() => {
+    AsyncStorage.getItem(SEARCH_HISTORY_KEY)
+      .then((stored) => {
+        if (stored) setSearchHistory(JSON.parse(stored));
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveSearchHistory = useCallback(async (keyword) => {
+    if (!keyword || !keyword.trim()) return;
+    const clean = keyword.trim();
+    setSearchHistory((prev) => {
+      const filtered = prev.filter((item) => item.toLowerCase() !== clean.toLowerCase());
+      const updated = [clean, ...filtered].slice(0, 8);
+      AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setSearchHistory([]);
+    AsyncStorage.removeItem(SEARCH_HISTORY_KEY).catch(() => {});
+  }, []);
+
+  const fetchSearchResults = useCallback(async (keyword, pageNum = 0) => {
+    if (!keyword || !keyword.trim()) return;
 
-
-/* =================================================
-   CONSTANTS
-================================================= */
-
-const SEARCH_HISTORY_KEY =
-  'SEARCH_HISTORY';
-
-
-const SEARCH_DELAY = 500;
-
-
-const PAGE_SIZE = 10;
-
-
-
-const AnimatedTextInput =
-  Animated.createAnimatedComponent(TextInput);
-
-
-
-/* =================================================
-   SEARCH SCREEN
-================================================= */
-
-
-export default function SearchScreen({
-  navigation,
-}) {
-
-
-  /* ===============================
-      STATE
-  =============================== */
-
-
-  const [
-    searchText,
-    setSearchText
-  ] = useState('');
-
-
-  const [
-    products,
-    setProducts
-  ] = useState([]);
-
-
-  const [
-    loading,
-    setLoading
-  ] = useState(false);
-
-
-
-  const [
-    refreshing,
-    setRefreshing
-  ] = useState(false);
-
-
-
-  const [
-    loadingMore,
-    setLoadingMore
-  ] = useState(false);
-
-
-
-  const [
-    page,
-    setPage
-  ] = useState(0);
-
-
-
-  const [
-    hasMore,
-    setHasMore
-  ] = useState(true);
-
-
-
-  const [
-    addingToCartId,
-    setAddingToCartId
-  ] = useState(null);
-
-
-
-  const [
-    searchHistory,
-    setSearchHistory
-  ] = useState([]);
-
-
-
-  const [
-    showHistory,
-    setShowHistory
-  ] = useState(true);
-
-
-
-  const [
-    error,
-    setError
-  ] = useState('');
-
-
-
-  const { addToCart } = useCart();
-
-  /* ===============================
-      REFS
-  =============================== */
-
-
-  const debounceTimer =
-    useRef(null);
-
-
-
-  const abortController =
-    useRef(null);
-
-
-
-  /* ===============================
-      ANIMATION
-  =============================== */
-
-
-  const searchHeight =
-    useRef(
-      new Animated.Value(54)
-    ).current;
-
-
-
-  const shadowAnimation =
-    useRef(
-      new Animated.Value(2)
-    ).current;
-
-
-
-  /* ===============================
-      SEARCH ANIMATION
-  =============================== */
-
-
-  const animateSearch =
-    useCallback(
-      focused => {
-
-
-        Animated.parallel([
-
-          Animated.spring(
-            searchHeight,
-            {
-              toValue:
-                focused ? 62 : 54,
-
-              useNativeDriver:false,
-            }
-          ),
-
-
-          Animated.spring(
-            shadowAnimation,
-            {
-              toValue:
-                focused ? 8 : 2,
-
-              useNativeDriver:false,
-            }
-          ),
-
-        ]).start();
-
-      },
-      []
-    );
-
-
-
-  /* ===============================
-      LOAD SEARCH HISTORY
-  =============================== */
-
-
-  const loadHistory =
-    useCallback(
-      async()=>{
-
-        try{
-
-          const stored =
-            await AsyncStorage.getItem(
-              SEARCH_HISTORY_KEY
-            );
-
-
-          if(stored){
-
-            setSearchHistory(
-              JSON.parse(stored)
-            );
-
-          }
-
-
-        }catch(error){
-
-          console.log(
-            "History Error:",
-            error
-          );
-
-        }
-
-
-      },
-      []
-    );
-
-
-
-  useEffect(()=>{
-
-    loadHistory();
-
-  },[]);
-
-
-
-  /* ===============================
-      SAVE SEARCH HISTORY
-  =============================== */
-
-
-  const saveSearch =
-    useCallback(
-      async(keyword)=>{
-
-
-        if(!keyword.trim())
-          return;
-
-
-
-        setSearchHistory(
-          previous=>{
-
-
-            const updated =
-              previous.filter(
-                item =>
-                  item.toLowerCase()
-                  !==
-                  keyword.toLowerCase()
-              );
-
-
-            updated.unshift(
-              keyword
-            );
-
-
-            const finalHistory =
-              updated.slice(0,8);
-
-
-
-            AsyncStorage.setItem(
-              SEARCH_HISTORY_KEY,
-              JSON.stringify(
-                finalHistory
-              )
-            );
-
-
-            return finalHistory;
-
-          }
-        );
-
-
-      },
-      []
-    );
-
-
-
-  /* ===============================
-      SUGGESTIONS
-  =============================== */
-
-
-  const suggestions =
-    useMemo(
-      ()=>[
-        'mobile',
-        'Laptop',
-        'Shoes',
-        'Rice',
-        'Milk',
-        'Watch',
-        'Headphones',
-        'Smart TV',
-      ],
-      []
-    );
-      /* =================================================
-      FETCH PRODUCTS API
-  ================================================= */
-
-
-  const fetchProducts =
-    useCallback(
-      async(
-        keyword,
-        pageNumber = 0,
-        isRefresh = false
-      )=>{
-
-
-        if(!keyword.trim())
-          return;
-
-
-
-        try{
-
-
-          /*
-             Cancel previous request
-          */
-
-          if(abortController.current){
-
-            abortController.current.abort();
-
-          }
-
-
-
-          abortController.current =
-            new AbortController();
-
-
-
-          if(isRefresh){
-
-            setRefreshing(true);
-
-          }
-          else if(pageNumber === 0){
-
-            setLoading(true);
-
-          }
-          else{
-
-            setLoadingMore(true);
-
-          }
-
-
-
-          setError('');
-
-
-
-          const result =
-            await getProducts({
-
-              q:keyword,
-
-              page:pageNumber,
-
-              size:PAGE_SIZE,
-
-              signal:
-              abortController.current.signal,
-
-            });
-
-
-
-          const content =
-            normalizeProductPage(result)?.content || [];
-
-
-
-          if(pageNumber === 0){
-
-
-            setProducts(
-              content
-            );
-
-
-          }
-          else{
-
-
-            setProducts(
-              previous=>[
-                ...previous,
-                ...content
-              ]
-            );
-
-
-          }
-
-
-
-          setPage(
-            pageNumber
-          );
-
-
-
-          setHasMore(
-            !result.last
-          );
-
-
-
-        }
-        catch(error){
-
-
-          if(
-            error?.code === 'ERR_CANCELED'
-          ){
-
-            return;
-
-          }
-
-
-
-          console.log(
-            "Search API Error:",
-            error.message
-          );
-
-
-
-          setError(
-            "Unable to load products"
-          );
-
-
-
-          if(pageNumber===0){
-
-            setProducts([]);
-
-          }
-
-
-
-        }
-        finally{
-
-
-          setLoading(false);
-
-          setRefreshing(false);
-
-          setLoadingMore(false);
-
-
-        }
-
-
-      },
-      []
-    );
-
-
-
-
-
-  /* =================================================
-      AUTO SEARCH WITH DEBOUNCE
-  ================================================= */
-
-
-  useEffect(()=>{
-
-
-    if(debounceTimer.current){
-
-      clearTimeout(
-        debounceTimer.current
-      );
-
-    }
-
-
-
-    const keyword =
-      searchText.trim();
-
-
-
-    if(!keyword){
-
-
-      setProducts([]);
-
-      setShowHistory(true);
-
-      return;
-
-
-    }
-
-
-
-    setShowHistory(false);
-
-
-
-    debounceTimer.current =
-      setTimeout(()=>{
-
-
-        fetchProducts(
-          keyword,
-          0
-        );
-
-
-        saveSearch(
-          keyword
-        );
-
-
-      },SEARCH_DELAY);
-
-
-
-    return ()=>{
-
-
-      if(debounceTimer.current){
-
-        clearTimeout(
-          debounceTimer.current
-        );
-
-      }
-
-
-    };
-
-
-  },[
-    searchText
-  ]);
-
-
-
-
-
-  /* =================================================
-      REFRESH PRODUCTS
-  ================================================= */
-
-
-  const handleRefresh =
-    useCallback(()=>{
-
-
-      if(!searchText.trim())
-        return;
-
-
-
-      fetchProducts(
-        searchText,
-        0,
-        true
-      );
-
-
-    },[
-      searchText
-    ]);
-
-
-
-
-
-  /* =================================================
-      LOAD NEXT PAGE
-  ================================================= */
-
-
-  const handleLoadMore =
-    useCallback(()=>{
-
-
-      if(
-
-        loadingMore ||
-
-        loading ||
-
-        !hasMore
-
-      )
-      {
-
-        return;
-
-      }
-
-
-
-      fetchProducts(
-
-        searchText,
-
-        page + 1
-
-      );
-
-
-    },[
-      loadingMore,
-      loading,
-      hasMore,
-      page,
-      searchText
-    ]);
-
-
-
-
-
-  /* =================================================
-      ADD TO CART
-  ================================================= */
-
-
-  const handleAddToCart =
-    async(product)=>{
-
-
-      try{
-
-
-        setAddingToCartId(
-          product.id
-        );
-
-
-
-        const result =
-        await addToCart(
-
-          product.id,
-
-          1
-
-        );
-
-
-
-        if(!result.success){
-
-          Alert.alert(
-
-            "Error",
-
-            result.message
-
-          );
-
-          return;
-
-        }
-
-
-
-        Alert.alert(
-
-          "Success",
-
-          "Product added to cart"
-
-        );
-
-
-      }
-      catch(error){
-
-
-        Alert.alert(
-
-          "Error",
-
-          "Unable to add product"
-
-        );
-
-
-      }
-      finally{
-
-
-        setAddingToCartId(
-          null
-        );
-
-
-      }
-
-
-    };
-      /* =================================================
-      PRODUCT CARD COMPONENT
-  ================================================= */
-
-
-  const ProductCard = memo(
-    ({
-      item
-    })=>{
-
-
-      const imageOpacity =
-        useRef(
-          new Animated.Value(0)
-        ).current;
-
-
-
-      const handleImageLoad =
-        ()=>{
-
-
-          Animated.timing(
-
-            imageOpacity,
-
-            {
-
-              toValue:1,
-
-              duration:300,
-
-              useNativeDriver:true,
-
-            }
-
-          ).start();
-
-
-        };
-
-
-
-      const price =
-        Number(
-          item.price || 0
-        );
-
-
-
-      const originalPrice =
-        Number(
-          item.actualPrice ||
-          item.price ||
-          0
-        );
-
-
-
-      const discount =
-        originalPrice > price
-
-        ?
-
-        Math.round(
-
-          (
-            (
-              originalPrice-price
-            )
-            /
-            originalPrice
-          )
-          *
-          100
-
-        )
-
-        :
-
-        0;
-
-
-
-      const available =
-        item.stock === undefined ||
-        item.stock === null ||
-        item.stock > 0;
-
-      useEffect(() => {
-
-  return () => {
-
-    // cancel pending debounce timer
-    if (debounceTimer.current) {
-      clearTimeout(
-        debounceTimer.current
-      );
-    }
-
-
-    // cancel running API request
     if (abortController.current) {
       abortController.current.abort();
     }
-
-  };
-
-}, []);
-
-
-      return(
-
-
-        <TouchableOpacity
-
-          activeOpacity={0.92}
-
-          style={
-            styles.productCard
-          }
-
-          onPress={()=>
-
-
-            navigation.navigate(
-
-              "SelectedProduct",
-
-              {
-                id:item.id
-              }
-
-            )
-
-
-          }
-
-        >
-
-
-
-          {/* IMAGE SECTION */}
-
-
-          <View
-            style={
-              styles.imageWrapper
-            }
-          >
-
-
-            <Animated.Image
-
-              source={
-
-                item.imageUrl
-
-                ?
-
-                {
-                  uri:item.imageUrl
-                }
-
-                :
-
-                require(
-                  '../../assets/product-placeholder.png'
-                )
-
-              }
-
-
-              style={[
-                styles.productImage,
-
-                {
-                  opacity:imageOpacity
-                }
-
-              ]}
-
-
-              resizeMode="cover"
-
-
-              onLoad={
-                handleImageLoad
-              }
-
-
-            />
-
-
-
-            {
-              discount > 0 &&
-
-              <View
-                style={
-                  styles.discountBadge
-                }
-              >
-
-                <Text
-                  style={
-                    styles.discountText
-                  }
-                >
-
-                  {discount}% OFF
-
-                </Text>
-
-              </View>
-
-            }
-
-
-
-
-            {
-              !available &&
-
-              <View
-                style={
-                  styles.outStockBadge
-                }
-              >
-
-                <Text
-                  style={
-                    styles.outStockText
-                  }
-                >
-
-                  Out Of Stock
-
-                </Text>
-
-              </View>
-
-            }
-
-
-
-
-            <TouchableOpacity
-
-              activeOpacity={0.8}
-
-              style={
-                styles.favoriteButton
-              }
-
-            >
-
-              <Ionicons
-
-                name="heart-outline"
-
-                size={20}
-
-                color="#475467"
-
-              />
-
-
-            </TouchableOpacity>
-
-
-          </View>
-
-
-
-
-
-          {/* DETAILS SECTION */}
-
-
-
-          <View
-            style={
-              styles.productDetails
-            }
-          >
-
-
-
-            <Text
-
-              numberOfLines={2}
-
-              style={
-                styles.productName
-              }
-
-            >
-
-              {item.name}
-
-
-            </Text>
-
-
-
-
-            <View
-              style={
-                styles.ratingBox
-              }
-            >
-
-
-              <Ionicons
-
-                name="star"
-
-                size={14}
-
-                color="#FBBF24"
-
-              />
-
-
-
-              <Text
-
-                style={
-                  styles.ratingText
-                }
-
-              >
-
-                {
-                  Number(
-                    item.rating || 4.5
-                  )
-                  .toFixed(1)
-                }
-
-
-              </Text>
-
-
-            </View>
-
-
-
-
-
-
-            <View
-              style={
-                styles.priceContainer
-              }
-            >
-
-
-              <Text
-                style={
-                  styles.currentPrice
-                }
-              >
-
-                ₹{price}
-
-              </Text>
-
-
-
-              {
-                originalPrice > price &&
-
-                <Text
-
-                  style={
-                    styles.oldPrice
-                  }
-
-                >
-
-                  ₹{originalPrice}
-
-                </Text>
-
-              }
-
-
-
-            </View>
-
-
-
-
-
-            {
-              item.brand &&
-
-              <Text
-
-                style={
-                  styles.brandText
-                }
-
-              >
-
-                {item.brand}
-
-              </Text>
-
-            }
-
-
-
-
-
-            {
-              item.stock !== undefined &&
-
-              <Text
-
-                style={[
-
-                  styles.stockText,
-
-                  {
-
-                    color:
-
-                    available
-
-                    ?
-
-                    "#16A34A"
-
-                    :
-
-                    "#DC2626"
-
-                  }
-
-                ]}
-
-
-              >
-
-                {
-
-                  available
-
-                  ?
-
-                  `${item.stock} available`
-
-                  :
-
-                  "Unavailable"
-
-                }
-
-
-              </Text>
-
-            }
-
-
-
-
-
-
-
-            <TouchableOpacity
-
-              activeOpacity={0.85}
-
-              disabled={
-                !available ||
-                addingToCartId===item.id
-              }
-
-
-              onPress={()=>{
-
-                handleAddToCart(
-                  item
-                );
-
-              }}
-
-
-              style={[
-
-                styles.cartButton,
-
-                !available &&
-                styles.disabledCartButton
-
-              ]}
-
-            >
-
-
-
-              {
-
-                addingToCartId===item.id
-
-                ?
-
-                (
-
-                  <ActivityIndicator
-
-                    color="#FFFFFF"
-
-                    size="small"
-
-                  />
-
-                )
-
-                :
-
-                (
-
-                  <>
-
-                  <Ionicons
-
-                    name="cart-outline"
-
-                    size={18}
-
-                    color="#FFFFFF"
-
-                  />
-
-
-
-                  <Text
-
-                    style={
-                      styles.cartButtonText
-                    }
-
-                  >
-
-                    Add To Cart
-
-                  </Text>
-
-
-                  </>
-
-                )
-
-
-              }
-
-
-
-            </TouchableOpacity>
-
-
-
-
-          </View>
-
-
-
-
-        </TouchableOpacity>
-
-
-      );
-
-
+    abortController.current = new AbortController();
+
+    if (pageNum === 0) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
     }
 
-  );
-
-
-  ProductCard.displayName =
-    "ProductCard";
-    /* =================================================
-      EMPTY STATE COMPONENT
-  ================================================= */
-
-
-  const EmptyState = memo(()=>{
-
-
-    if(loading)
-      return null;
-
-
-
-    return(
-
-      <View
-        style={
-          styles.emptyContainer
-        }
-      >
-
-
-        <Ionicons
-
-          name="search-outline"
-
-          size={75}
-
-          color="#D0D5DD"
-
-        />
-
-
-
-        <Text
-
-          style={
-            styles.emptyTitle
-          }
-
-        >
-
-          No Products Found
-
-        </Text>
-
-
-
-        <Text
-
-          style={
-            styles.emptySubtitle
-          }
-
-        >
-
-          Try searching with another keyword
-
-        </Text>
-
-
-
-      </View>
-
-    );
-
-
-  });
-
-
-
-
-
-
-  /* =================================================
-      ERROR COMPONENT
-  ================================================= */
-
-
-  const ErrorState = memo(()=>{
-
-
-    return(
-
-      <View
-        style={
-          styles.errorContainer
-        }
-      >
-
-
-
-        <Ionicons
-
-          name="cloud-offline-outline"
-
-          size={70}
-
-          color="#EF4444"
-
-        />
-
-
-
-
-        <Text
-
-          style={
-            styles.errorTitle
-          }
-
-        >
-
-          Something went wrong
-
-        </Text>
-
-
-
-
-
-        <Text
-
-          style={
-            styles.errorMessage
-          }
-
-        >
-
-          {error}
-
-        </Text>
-
-
-
-
-
-        <TouchableOpacity
-
-          activeOpacity={0.85}
-
-          style={
-            styles.retryButton
-          }
-
-          onPress={()=>{
-
-            fetchProducts(
-
-              searchText,
-
-              0
-
-            );
-
-          }}
-
-        >
-
-
-          <Text
-
-            style={
-              styles.retryText
-            }
-
-          >
-
-            Retry
-
-          </Text>
-
-
-
-        </TouchableOpacity>
-
-
-
-
-      </View>
-
-    );
-
-
-  });
-
-
-
-
-
-
-  /* =================================================
-      SKELETON LOADER
-  ================================================= */
-
-
-  const SkeletonCard = memo(()=>{
-
-
-    const animatedValue =
-      useRef(
-        new Animated.Value(0)
-      ).current;
-
-
-
-    useEffect(()=>{
-
-
-      Animated.loop(
-
-        Animated.sequence([
-
-
-          Animated.timing(
-
-            animatedValue,
-
-            {
-
-              toValue:1,
-
-              duration:900,
-
-              useNativeDriver:true,
-
-            }
-
-          ),
-
-
-
-          Animated.timing(
-
-            animatedValue,
-
-            {
-
-              toValue:0,
-
-              duration:900,
-
-              useNativeDriver:true,
-
-            }
-
-          )
-
-
-        ])
-
-      ).start();
-
-
-
-    },[]);
-
-
-
-
-    const opacity =
-      animatedValue.interpolate({
-
-        inputRange:[0,1],
-
-        outputRange:[0.4,0.9]
-
+    try {
+      const result = await getProducts({
+        q: keyword.trim(),
+        page: pageNum,
+        size: 20,
+        signal: abortController.current.signal,
       });
 
-
-
-
-
-    return(
-
-
-      <Animated.View
-
-        style={[
-
-          styles.productCard,
-
-          {
-            opacity
-          }
-
-        ]}
-
-      >
-
-
-
-        <View
-
-          style={
-            styles.skeletonImage
-          }
-
-        />
-
-
-
-
-        <View
-
-          style={
-            styles.skeletonContent
-          }
-
-        >
-
-
-
-          <View
-
-            style={
-              styles.skeletonLineLarge
-            }
-
-          />
-
-
-
-          <View
-
-            style={
-              styles.skeletonLineSmall
-            }
-
-          />
-
-
-
-          <View
-
-            style={
-              styles.skeletonButton
-            }
-
-          />
-
-
-
-        </View>
-
-
-
-      </Animated.View>
-
-
-    );
-
-
-  });
-
-
-
-
-
-
-
-  const LoadingSkeleton =
-    memo(()=>{
-
-
-      return(
-
-
-        <View>
-
-
-          {
-
-            Array
-              .from(
-                {
-                  length:5
-                }
-              )
-              .map((_,index)=>(
-
-
-                <SkeletonCard
-
-                  key={index}
-
-                />
-
-
-              ))
-
-          }
-
-
-        </View>
-
-
-      );
-
-
-    });
-
-
-
-
-
-
-
-
-  /* =================================================
-      FOOTER LOADING
-  ================================================= */
-
-
-
-  const FooterLoader =
-    memo(()=>{
-
-
-      if(!loadingMore)
-        return null;
-
-
-
-      return(
-
-        <View
-
-          style={
-            styles.footerLoader
-          }
-
-        >
-
-          <ActivityIndicator
-
-            size="large"
-
-            color="#FF6B00"
-
-          />
-
-
-        </View>
-
-      );
-
-
-    });
-      /* =================================================
-      MAIN UI
-  ================================================= */
-
-
-  return (
-
-    <SafeAreaView
-
-      style={
-        styles.safeArea
+      const content = normalizeProductPage(result)?.content || [];
+
+      if (pageNum === 0) {
+        setProducts(content);
+      } else {
+        setProducts((prev) => [...prev, ...content]);
       }
 
-    >
-
-
-      <StatusBar
-
-        barStyle="dark-content"
-
-        backgroundColor="#F8F9FB"
-
-      />
-
-
-
-      <View
-
-        style={
-          styles.container
-        }
-
-      >
-
-
-
-
-
-        {/* ================= HEADER ================= */}
-
-
-
-        <View
-
-          style={
-            styles.header
-          }
-
-        >
-
-
-
-          <Text
-
-            style={
-              styles.headerTitle
-            }
-
-          >
-
-            Search Products
-
-          </Text>
-
-
-
-
-          <TouchableOpacity
-
-            activeOpacity={0.8}
-
-            onPress={()=>{
-
-              navigation.goBack();
-
-            }}
-
-          >
-
-
-            <Ionicons
-
-              name="close"
-
-              size={26}
-
-              color="#111827"
-
-            />
-
-
-
-          </TouchableOpacity>
-
-
-
-        </View>
-
-
-
-
-
-
-
-        {/* ================= SEARCH BAR ================= */}
-
-
-
-        <Animated.View
-
-          style={[
-
-            styles.searchContainer,
-
-            {
-
-              height:
-              searchHeight,
-
-
-              elevation:
-              shadowAnimation,
-
-
-            }
-
-          ]}
-
-
-        >
-
-
-
-          <Ionicons
-
-            name="search-outline"
-
-            size={22}
-
-            color="#667085"
-
-          />
-
-
-
-
-
-          <AnimatedTextInput
-
-
-            value={
-              searchText
-            }
-
-
-            onChangeText={
-              setSearchText
-            }
-
-
-
-            placeholder=
-              "Search products..."
-
-
-
-            placeholderTextColor=
-              "#98A2B3"
-
-
-
-            style={
-              styles.searchInput
-            }
-
-
-
-            autoCorrect={false}
-
-
-
-            autoCapitalize="none"
-
-
-
-            returnKeyType="search"
-
-
-
-            onFocus={()=>{
-
-              animateSearch(true);
-
-            }}
-
-
-
-            onBlur={()=>{
-
-              animateSearch(false);
-
-            }}
-
-
-
-          />
-
-
-
-
-
-
-          {
-
-            searchText.length > 0 &&
-
-
-            <TouchableOpacity
-
-              onPress={()=>{
-
-
-                setSearchText('');
-
-                setProducts([]);
-
-                Keyboard.dismiss();
-
-
-              }}
-
-
-            >
-
-
-              <Ionicons
-
-                name="close-circle"
-
-                size={22}
-
-                color="#98A2B3"
-
-              />
-
-
-
-            </TouchableOpacity>
-
-
-          }
-
-
-
-
-
-
-          <TouchableOpacity
-
-            style={
-              styles.voiceButton
-            }
-
-          >
-
-
-            <Ionicons
-
-              name="mic-outline"
-
-              size={20}
-
-              color="#FF6B00"
-
-            />
-
-
-          </TouchableOpacity>
-
-
-
-        </Animated.View>
-
-
-
-
-
-
-
-        {/* ================= HISTORY ================= */}
-
-
-
-
-        {
-          showHistory &&
-
-          searchHistory.length > 0 &&
-
-
-
-          <View
-
-            style={
-              styles.section
-            }
-
-          >
-
-
-
-            <View
-
-              style={
-                styles.sectionHeader
-              }
-
-            >
-
-
-              <Text
-
-                style={
-                  styles.sectionTitle
-                }
-
-              >
-
-                Recent Searches
-
-              </Text>
-
-
-
-
-
-              <TouchableOpacity
-
-
-                onPress={async()=>{
-
-
-                  await AsyncStorage.removeItem(
-
-                    SEARCH_HISTORY_KEY
-
-                  );
-
-
-
-                  setSearchHistory([]);
-
-
-
-                }}
-
-
-
-              >
-
-
-                <Text
-
-                  style={
-                    styles.clearText
-                  }
-
-                >
-
-                  Clear
-
-                </Text>
-
-
-
-              </TouchableOpacity>
-
-
-
-            </View>
-
-
-
-
-
-
-            <View
-
-              style={
-                styles.chipContainer
-              }
-
-            >
-
-
-
-              {
-
-                searchHistory.map(
-
-                  (item,index)=>(
-
-
-                    <TouchableOpacity
-
-
-                      key={index}
-
-
-                      style={
-                        styles.historyChip
-                      }
-
-
-                      onPress={()=>{
-
-                        setSearchText(item);
-
-                      }}
-
-
-
-                    >
-
-
-
-                      <Ionicons
-
-                        name="time-outline"
-
-                        size={14}
-
-                        color="#667085"
-
-                      />
-
-
-
-
-                      <Text
-
-                        style={
-                          styles.chipText
-                        }
-
-                      >
-
-                        {item}
-
-                      </Text>
-
-
-
-                    </TouchableOpacity>
-
-
-                  )
-
-
-                )
-
-              }
-
-
-
-            </View>
-
-
-
-
-
-          </View>
-
-
-        }
-
-
-
-
-
-
-
-        {/* ================= SUGGESTIONS ================= */}
-
-
-
-
-
-        {
-
-          showHistory &&
-
-
-
-          <View
-
-            style={
-              styles.section
-            }
-
-          >
-
-
-
-            <Text
-
-              style={
-                styles.sectionTitle
-              }
-
-            >
-
-              Popular Searches
-
-            </Text>
-
-
-
-
-
-            <View
-
-              style={
-                styles.chipContainer
-              }
-
-            >
-
-
-
-              {
-
-                suggestions.map(
-
-                  (item,index)=>(
-
-
-                    <TouchableOpacity
-
-
-                      key={index}
-
-
-                      style={
-                        styles.suggestionChip
-                      }
-
-
-
-                      onPress={()=>{
-
-                        setSearchText(item);
-
-                      }}
-
-
-                    >
-
-
-
-                      <Text
-
-                        style={
-                          styles.suggestionText
-                        }
-
-                      >
-
-                        {item}
-
-                      </Text>
-
-
-
-                    </TouchableOpacity>
-
-
-                  )
-
-                )
-
-              }
-
-
-
-            </View>
-
-
-
-          </View>
-
-
-        }
-                {/* ================= CONTENT ================= */}
-
-
-        {
-
-          error ?
-
-
-          (
-
-            <ErrorState />
-
-          )
-
-
-          :
-
-
-          loading ?
-
-
-          (
-
-            <LoadingSkeleton />
-
-          )
-
-
-          :
-
-
-          (
-
-            <FlatList
-
-
-              data={
-                products
-              }
-
-
-
-              keyExtractor={
-                item =>
-                  item.id.toString()
-              }
-
-
-
-
-              renderItem={
-                ({item})=>(
-
-                  <ProductCard
-
-                    item={item}
-
-                  />
-
-                )
-              }
-
-
-
-
-              showsVerticalScrollIndicator={
-                false
-              }
-
-
-
-
-
-              contentContainerStyle={
-                styles.listContainer
-              }
-
-
-
-
-
-              ListEmptyComponent={
-
-                <EmptyState />
-
-              }
-
-
-
-
-
-              ListFooterComponent={
-
-                <FooterLoader />
-
-              }
-
-
-
-
-
-              refreshControl={
-
-
-                <RefreshControl
-
-
-                  refreshing={
-                    refreshing
-                  }
-
-
-
-                  onRefresh={
-                    handleRefresh
-                  }
-
-
-
-                  colors={[
-                    '#FF6B00'
-                  ]}
-
-
-
-                />
-
-
-              }
-
-
-
-
-
-              onEndReached={
-                handleLoadMore
-              }
-
-
-
-
-              onEndReachedThreshold={
-                0.5
-              }
-
-
-
-
-
-              keyboardShouldPersistTaps=
-                "handled"
-
-
-
-
-
-              removeClippedSubviews={
-                true
-              }
-
-
-
-
-
-              initialNumToRender={
-                8
-              }
-
-
-
-
-
-              maxToRenderPerBatch={
-                8
-              }
-
-
-
-
-
-              windowSize={
-                10
-              }
-
-
-
-
-            />
-
-
-          )
-
-
-        }
-
-
-
-      </View>
-
-
-
-    </SafeAreaView>
-
-
+      setPage(pageNum);
+      setHasMore(!result?.last);
+    } catch (e) {
+      if (e?.code !== 'ERR_CANCELED') {
+        if (pageNum === 0) setProducts([]);
+      }
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    const query = searchText.trim();
+    if (!query) {
+      setProducts([]);
+      setShowHistory(true);
+      return;
+    }
+
+    setShowHistory(false);
+    debounceTimer.current = setTimeout(() => {
+      fetchSearchResults(query, 0);
+      saveSearchHistory(query);
+    }, SEARCH_DELAY);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [searchText, fetchSearchResults, saveSearchHistory]);
+
+  const handleSelectKeyword = (keyword) => {
+    setSearchText(keyword);
+    Keyboard.dismiss();
+  };
+
+  const handleLoadMore = () => {
+    if (!loading && !loadingMore && hasMore && products.length > 0) {
+      fetchSearchResults(searchText, page + 1);
+    }
+  };
+
+  const renderProductItem = useCallback(
+    ({ item }) => <ProductCard product={item} cardWidth={layout.cardWidth} />,
+    [layout.cardWidth]
   );
 
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+
+      {/* Top Search Bar Header */}
+      <View
+        style={[
+          styles.headerBar,
+          {
+            paddingTop: insets.top + 8,
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.borderLight,
+            ...shadows.xs,
+          },
+        ]}
+      >
+        <AnimatedPressable
+          onPress={() => navigation.goBack()}
+          style={[styles.backBtn, { backgroundColor: colors.surfaceSubtle }]}
+          haptic="light"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
+        </AnimatedPressable>
+
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              backgroundColor: isDark ? colors.backgroundSecondary : '#F1F5F9',
+              borderRadius: radius.xl,
+            },
+          ]}
+        >
+          <Ionicons name="search" size={20} color={colors.primary} />
+          <TextInput
+            ref={inputRef}
+            style={[styles.input, { color: colors.text }]}
+            placeholder="Search products, brands..."
+            placeholderTextColor={colors.textMuted}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+            autoFocus
+          />
+          {searchText.length > 0 && (
+            <AnimatedPressable
+              onPress={() => setSearchText('')}
+              style={styles.clearBtn}
+              scaleTo={0.88}
+            >
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+            </AnimatedPressable>
+          )}
+        </View>
+      </View>
+
+      {/* History & Suggestions OR Results */}
+      {showHistory ? (
+        <View style={styles.historyContainer}>
+          {searchHistory.length > 0 && (
+            <View style={styles.historySection}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={[styles.sectionTitle, { color: colors.text, fontWeight: typography.weights.bold }]}>
+                  Recent Searches
+                </Text>
+                <AnimatedPressable onPress={clearHistory} scaleTo={0.92}>
+                  <Text style={[styles.clearText, { color: colors.danger, fontWeight: typography.weights.semibold }]}>
+                    Clear
+                  </Text>
+                </AnimatedPressable>
+              </View>
+
+              <View style={styles.chipsWrap}>
+                {searchHistory.map((item, idx) => (
+                  <AnimatedPressable
+                    key={idx}
+                    onPress={() => handleSelectKeyword(item)}
+                    scaleTo={0.94}
+                    haptic="selection"
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        borderRadius: radius.full,
+                      },
+                    ]}
+                  >
+                    <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                    <Text style={[styles.chipText, { color: colors.text }]}>{item}</Text>
+                  </AnimatedPressable>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Trending Suggestions */}
+          <View style={styles.historySection}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontWeight: typography.weights.bold }]}>
+              Popular Suggestions
+            </Text>
+
+            <View style={styles.chipsWrap}>
+              {SUGGESTIONS.map((item, idx) => (
+                <AnimatedPressable
+                  key={idx}
+                  onPress={() => handleSelectKeyword(item)}
+                  scaleTo={0.94}
+                  haptic="selection"
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      borderRadius: radius.full,
+                    },
+                  ]}
+                >
+                  <Ionicons name="trending-up" size={14} color={colors.primary} />
+                  <Text style={[styles.chipText, { color: colors.text }]}>{item}</Text>
+                </AnimatedPressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      ) : (
+        <FlatList
+          data={products}
+          keyExtractor={(item) => String(item.id || item.publicId || Math.random())}
+          renderItem={renderProductItem}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 60 }]}
+          showsVerticalScrollIndicator={false}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.4}
+          ListHeaderComponent={
+            <View style={styles.resultsCountHeader}>
+              <Text style={[styles.resultsCountText, { color: colors.textSecondary }]}>
+                {loading ? 'Searching...' : `Found ${products.length} matching products`}
+              </Text>
+            </View>
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyContainer}>
+                <View style={[styles.emptyCircle, { backgroundColor: colors.surfaceSubtle }]}>
+                  <Ionicons name="search-outline" size={64} color={colors.textMuted} />
+                </View>
+                <Text
+                  style={[
+                    styles.emptyTitle,
+                    { color: colors.text, fontWeight: typography.weights.extrabold },
+                  ]}
+                >
+                  No Results Found
+                </Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                  We couldn't find anything for "{searchText}". Try checking for typos or broader keywords.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.loadingCenter}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingCenterText, { color: colors.textSecondary }]}>
+                  Searching sdCart...
+                </Text>
+              </View>
+            )
+          }
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : null
+          }
+        />
+      )}
+    </View>
+  );
 }
+
 const styles = StyleSheet.create({
-
-  /* ===============================
-      ROOT
-  =============================== */
-
-
-  safeArea:{
-    flex:1,
-    backgroundColor:'#F8F9FB',
+  container: {
+    flex: 1,
   },
-
-
-  container:{
-    flex:1,
-    paddingHorizontal:16,
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 10,
+    borderBottomWidth: 1,
   },
-
-
-
-  /* ===============================
-      HEADER
-  =============================== */
-
-
-  header:{
-    height:60,
-    flexDirection:'row',
-    alignItems:'center',
-    justifyContent:'space-between',
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-
-  headerTitle:{
-    fontSize:22,
-    fontWeight:'800',
-    color:'#101828',
+  inputContainer: {
+    flex: 1,
+    height: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    gap: 8,
   },
-
-
-
-  /* ===============================
-      SEARCH BAR
-  =============================== */
-
-
-  searchContainer:{
-    backgroundColor:'#FFFFFF',
-
-    borderRadius:18,
-
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    paddingHorizontal:14,
-
-    marginBottom:18,
-
-    shadowColor:'#000',
-
-    shadowOffset:{
-      width:0,
-      height:3,
-    },
-
-    shadowOpacity:0.08,
-
-    shadowRadius:8,
-
+  input: {
+    flex: 1,
+    height: '100%',
+    fontSize: 14,
   },
-
-
-
-  searchInput:{
-    flex:1,
-
-    marginLeft:10,
-
-    fontSize:16,
-
-    color:'#101828',
+  clearBtn: {
+    padding: 4,
   },
-
-
-
-  voiceButton:{
-    width:34,
-
-    height:34,
-
-    borderRadius:17,
-
-    alignItems:'center',
-
-    justifyContent:'center',
-
-    backgroundColor:'#FFF4E8',
-
-    marginLeft:8,
+  historyContainer: {
+    padding: 16,
   },
-
-
-
-  /* ===============================
-      SECTIONS
-  =============================== */
-
-
-  section:{
-    marginBottom:18,
+  historySection: {
+    marginBottom: 24,
   },
-
-
-
-  sectionHeader:{
-    flexDirection:'row',
-
-    justifyContent:'space-between',
-
-    alignItems:'center',
-
-    marginBottom:12,
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-
-
-
-  sectionTitle:{
-    fontSize:16,
-
-    fontWeight:'700',
-
-    color:'#1D2939',
+  sectionTitle: {
+    fontSize: 15,
+    marginBottom: 12,
   },
-
-
-
-  clearText:{
-    color:'#FF6B00',
-
-    fontSize:14,
-
-    fontWeight:'600',
+  clearText: {
+    fontSize: 13,
   },
-
-
-
-  /* ===============================
-      CHIPS
-  =============================== */
-
-
-  chipContainer:{
-    flexDirection:'row',
-
-    flexWrap:'wrap',
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-
-
-
-  historyChip:{
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    backgroundColor:'#FFFFFF',
-
-    paddingHorizontal:14,
-
-    paddingVertical:9,
-
-    borderRadius:20,
-
-    marginRight:10,
-
-    marginBottom:10,
-
-    elevation:1,
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    gap: 6,
   },
-
-
-
-  chipText:{
-    marginLeft:6,
-
-    fontSize:13,
-
-    color:'#475467',
-
-    fontWeight:'500',
+  chipText: {
+    fontSize: 13,
   },
-
-
-
-  suggestionChip:{
-    backgroundColor:'#FFF4E8',
-
-    paddingHorizontal:15,
-
-    paddingVertical:10,
-
-    borderRadius:20,
-
-    marginRight:10,
-
-    marginBottom:10,
+  resultsCountHeader: {
+    paddingBottom: 12,
   },
-
-
-
-  suggestionText:{
-    color:'#FF6B00',
-
-    fontSize:13,
-
-    fontWeight:'700',
+  resultsCountText: {
+    fontSize: 13,
   },
-
-
-
-  /* ===============================
-      PRODUCT CARD
-  =============================== */
-
-
-  productCard:{
-    backgroundColor:'#FFFFFF',
-
-    borderRadius:18,
-
-    padding:12,
-
-    marginBottom:14,
-
-    flexDirection:'row',
-
-    elevation:3,
-
-    shadowColor:'#000',
-
-    shadowOffset:{
-      width:0,
-      height:3,
-    },
-
-    shadowOpacity:0.08,
-
-    shadowRadius:8,
+  listContent: {
+    padding: 16,
   },
-
-
-
-  imageWrapper:{
-    width:115,
-
-    height:115,
-
-    borderRadius:15,
-
-    overflow:'hidden',
-
-    backgroundColor:'#F2F4F7',
-
-    position:'relative',
+  columnWrapper: {
+    justifyContent: 'space-between',
   },
-
-
-
-  productImage:{
-    width:'100%',
-
-    height:'100%',
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
   },
-
-
-
-  discountBadge:{
-    position:'absolute',
-
-    top:8,
-
-    left:8,
-
-    backgroundColor:'#16A34A',
-
-    paddingHorizontal:8,
-
-    paddingVertical:4,
-
-    borderRadius:8,
+  emptyCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
   },
-
-
-
-  discountText:{
-    color:'#FFFFFF',
-
-    fontSize:11,
-
-    fontWeight:'800',
+  emptyTitle: {
+    fontSize: 20,
+    marginBottom: 6,
   },
-
-
-
-  outStockBadge:{
-    position:'absolute',
-
-    bottom:8,
-
-    left:8,
-
-    backgroundColor:'#DC2626',
-
-    paddingHorizontal:8,
-
-    paddingVertical:5,
-
-    borderRadius:8,
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
-
-
-
-  outStockText:{
-    color:'#FFFFFF',
-
-    fontSize:10,
-
-    fontWeight:'700',
+  loadingCenter: {
+    paddingVertical: 60,
+    alignItems: 'center',
   },
-
-
-
-  favoriteButton:{
-    position:'absolute',
-
-    right:8,
-
-    top:8,
-
-    width:32,
-
-    height:32,
-
-    borderRadius:16,
-
-    backgroundColor:'#FFFFFF',
-
-    justifyContent:'center',
-
-    alignItems:'center',
-
-    elevation:2,
+  loadingCenterText: {
+    marginTop: 12,
+    fontSize: 14,
   },
-
-
-
-  /* ===============================
-      PRODUCT DETAILS
-  =============================== */
-
-
-  productDetails:{
-    flex:1,
-
-    marginLeft:14,
-
-    justifyContent:'space-between',
+  footerLoader: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
-
-
-
-  productName:{
-    fontSize:15,
-
-    fontWeight:'700',
-
-    color:'#101828',
-
-    lineHeight:20,
-  },
-
-
-
-  ratingBox:{
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    marginTop:5,
-  },
-
-
-
-  ratingText:{
-    marginLeft:5,
-
-    fontSize:12,
-
-    fontWeight:'700',
-
-    color:'#475467',
-  },
-
-
-
-  priceContainer:{
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    marginTop:5,
-  },
-
-
-
-  currentPrice:{
-    fontSize:18,
-
-    fontWeight:'800',
-
-    color:'#111827',
-  },
-
-
-
-  oldPrice:{
-    marginLeft:8,
-
-    fontSize:13,
-
-    color:'#98A2B3',
-
-    textDecorationLine:'line-through',
-  },
-
-
-
-  brandText:{
-    fontSize:12,
-
-    color:'#667085',
-  },
-
-  /* ===============================
-      STOCK
-  =============================== */
-
-
-  stockText:{
-    fontSize:12,
-
-    fontWeight:'600',
-
-    marginTop:4,
-  },
-
-
-
-  /* ===============================
-      CART BUTTON
-  =============================== */
-
-
-  cartButton:{
-    height:38,
-
-    borderRadius:12,
-
-    backgroundColor:'#FF6B00',
-
-    flexDirection:'row',
-
-    alignItems:'center',
-
-    justifyContent:'center',
-
-    marginTop:8,
-  },
-
-
-
-  cartButtonText:{
-    color:'#FFFFFF',
-
-    fontSize:13,
-
-    fontWeight:'700',
-
-    marginLeft:6,
-  },
-
-
-
-  disabledCartButton:{
-    backgroundColor:'#D0D5DD',
-  },
-
-
-
-  /* ===============================
-      LIST
-  =============================== */
-
-
-  listContainer:{
-    paddingBottom:40,
-  },
-
-
-
-  footerLoader:{
-    paddingVertical:25,
-
-    alignItems:'center',
-
-    justifyContent:'center',
-  },
-
-
-
-  /* ===============================
-      EMPTY STATE
-  =============================== */
-
-
-  emptyContainer:{
-    flex:1,
-
-    justifyContent:'center',
-
-    alignItems:'center',
-
-    marginTop:120,
-  },
-
-
-
-  emptyTitle:{
-    marginTop:20,
-
-    fontSize:19,
-
-    fontWeight:'800',
-
-    color:'#344054',
-  },
-
-
-
-  emptySubtitle:{
-    marginTop:8,
-
-    fontSize:14,
-
-    color:'#98A2B3',
-
-    textAlign:'center',
-  },
-
-
-
-  /* ===============================
-      ERROR STATE
-  =============================== */
-
-
-  errorContainer:{
-    flex:1,
-
-    justifyContent:'center',
-
-    alignItems:'center',
-
-    paddingHorizontal:30,
-  },
-
-
-
-  errorTitle:{
-    marginTop:18,
-
-    fontSize:20,
-
-    fontWeight:'800',
-
-    color:'#344054',
-  },
-
-
-
-  errorMessage:{
-    marginTop:8,
-
-    fontSize:14,
-
-    color:'#667085',
-
-    textAlign:'center',
-  },
-
-
-
-  retryButton:{
-    marginTop:20,
-
-    paddingHorizontal:35,
-
-    paddingVertical:12,
-
-    borderRadius:25,
-
-    backgroundColor:'#FF6B00',
-  },
-
-
-
-  retryText:{
-    color:'#FFFFFF',
-
-    fontWeight:'700',
-
-    fontSize:14,
-  },
-
-
-
-  /* ===============================
-      SKELETON
-  =============================== */
-
-
-  skeletonImage:{
-    width:115,
-
-    height:115,
-
-    borderRadius:15,
-
-    backgroundColor:'#E4E7EC',
-  },
-
-
-
-  skeletonContent:{
-    flex:1,
-
-    marginLeft:14,
-
-    justifyContent:'space-around',
-  },
-
-
-
-  skeletonLineLarge:{
-    width:'85%',
-
-    height:16,
-
-    borderRadius:8,
-
-    backgroundColor:'#E4E7EC',
-  },
-
-
-
-  skeletonLineSmall:{
-    width:'45%',
-
-    height:12,
-
-    borderRadius:8,
-
-    backgroundColor:'#E4E7EC',
-  },
-
-
-
-  skeletonButton:{
-    width:120,
-
-    height:35,
-
-    borderRadius:12,
-
-    backgroundColor:'#E4E7EC',
-  },
-
-
-
 });

@@ -1,570 +1,458 @@
 // src/screens/AddEditAddress.js
-
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
-  Alert,
   ScrollView,
+  TextInput,
+  Switch,
   ActivityIndicator,
-  SafeAreaView,
+  StatusBar,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
-  Image,
-  Animated,
 } from 'react-native';
-
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 
-import {
-  createAddress,
-  updateAddress,
-} from '../services/addressService';
+import { createAddress, updateAddress } from '../services/addressService';
 import { getErrorMessage } from '../services/apiClient';
+import { useTheme } from '../theme';
+import { ScreenHeader } from '../components/common/ScreenHeader';
+import { AnimatedPressable } from '../components/common/AnimatedPressable';
+import { useToast } from '../context/ToastContext';
 
-const AddEditAddress = () => {
+const LABELS = ['HOME', 'WORK', 'OTHER'];
+
+export default function AddEditAddress() {
   const navigation = useNavigation();
   const route = useRoute();
+  const { colors, typography, radius, shadows, isDark } = useTheme();
+  const { showSuccess, showError } = useToast();
 
   const { address } = route.params || {};
+  const isEditing = Boolean(address?.publicId);
 
-  // ---------------- FORM (backend AddressRequest contract) ----------------
-
-  const [label, setLabel] = useState(address?.label || 'Home');
-  const [recipientName, setRecipientName] = useState(
-    address?.recipientName || ''
-  );
+  const [label, setLabel] = useState(address?.label || 'HOME');
+  const [recipientName, setRecipientName] = useState(address?.recipientName || '');
   const [phone, setPhone] = useState(address?.phone || '');
   const [line1, setLine1] = useState(address?.line1 || '');
   const [line2, setLine2] = useState(address?.line2 || '');
   const [city, setCity] = useState(address?.city || '');
   const [state, setState] = useState(address?.state || '');
-  const [postalCode, setPostalCode] = useState(
-    address?.postalCode || ''
-  );
+  const [postalCode, setPostalCode] = useState(address?.postalCode || '');
   const [country, setCountry] = useState(address?.country || 'India');
-  const [isDefault, setIsDefault] = useState(
-    Boolean(address?.isDefault)
-  );
-
-  const [btnLoading, setBtnLoading] = useState(null);
-
-  // ---------------- ANIMATION ----------------
-
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(40)).current;
-
-  React.useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 450,
-        useNativeDriver: true,
-      }),
-
-      Animated.timing(slide, {
-        toValue: 0,
-        duration: 450,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  // ---------------- SAVE ----------------
+  const [isDefault, setIsDefault] = useState(Boolean(address?.isDefault));
+  const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!recipientName || !phone || !line1 || !city || !postalCode) {
-      Alert.alert('Validation', 'Please fill all required fields.');
+    if (!recipientName.trim()) {
+      showError('Please enter recipient name');
+      return;
+    }
+    if (!phone.trim()) {
+      showError('Please enter contact phone number');
+      return;
+    }
+    if (!line1.trim()) {
+      showError('Please enter address line 1');
+      return;
+    }
+    if (!city.trim()) {
+      showError('Please enter city');
+      return;
+    }
+    if (!postalCode.trim()) {
+      showError('Please enter postal/ZIP code');
       return;
     }
 
+    setSaving(true);
     const payload = {
       label,
-      recipientName,
-      phone,
-      line1,
-      line2: line2 || undefined,
-      city,
-      state: state || undefined,
-      postalCode: postalCode || undefined,
-      country,
+      recipientName: recipientName.trim(),
+      phone: phone.trim(),
+      line1: line1.trim(),
+      line2: line2.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      postalCode: postalCode.trim(),
+      country: country.trim(),
       isDefault,
     };
 
     try {
-      setBtnLoading('save');
-
-      if (address) {
+      if (isEditing) {
         await updateAddress(address.publicId, payload);
-        Alert.alert('Success', 'Address updated successfully.');
+        showSuccess('Address updated successfully');
       } else {
         await createAddress(payload);
-        Alert.alert('Success', 'Address added successfully.');
+        showSuccess('New address saved');
       }
-
       navigation.goBack();
-    } catch (error) {
-      Alert.alert('Error', getErrorMessage(error));
+    } catch (err) {
+      showError(getErrorMessage(err));
     } finally {
-      setBtnLoading(null);
+      setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    navigation.goBack();
-  };
-
-  // ---------------- REUSABLE INPUT ----------------
-
-  const InputField = ({
-    icon,
-    placeholder,
-    value,
-    onChangeText,
-    keyboardType,
-  }) => (
-    <View style={styles.inputContainer}>
-
-      <View style={styles.iconContainer}>
-        <MaterialCommunityIcons name={icon} size={22} color="#2563EB" />
-      </View>
-
-      <TextInput
-        style={styles.input}
-        placeholder={placeholder}
-        placeholderTextColor="#94A3B8"
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-      />
-
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <StatusBar backgroundColor="#2563EB" barStyle="light-content" />
+      <ScreenHeader
+        title={isEditing ? 'Edit Address' : 'Add New Address'}
+        subtitle="Delivery destination details"
+        showBack
+        showCart={false}
+      />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-
-        <LinearGradient
-          colors={['#2563EB', '#4F46E5']}
-          style={styles.header}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 }]}
         >
+          {/* Label Type Selector */}
+          <View style={styles.formGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+              Address Type
+            </Text>
+            <View style={styles.labelPillRow}>
+              {LABELS.map((item) => {
+                const isSelected = label === item;
+                return (
+                  <AnimatedPressable
+                    key={item}
+                    onPress={() => setLabel(item)}
+                    scaleTo={0.94}
+                    haptic="selection"
+                    style={[
+                      styles.labelPill,
+                      {
+                        backgroundColor: isSelected ? colors.primary : colors.surface,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        borderRadius: radius.full,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.labelPillText,
+                        {
+                          color: isSelected ? '#FFFFFF' : colors.text,
+                          fontWeight: isSelected ? typography.weights.bold : typography.weights.medium,
+                        },
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </AnimatedPressable>
+                );
+              })}
+            </View>
+          </View>
 
-          <Image
-            source={require('../../assets/clogo.png')}
-            style={styles.logo}
-          />
+          {/* Recipient Name */}
+          <View style={styles.formGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+              Recipient Name *
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                  borderRadius: radius.xl,
+                },
+              ]}
+              placeholder="e.g. Rahul Sharma"
+              placeholderTextColor={colors.textMuted}
+              value={recipientName}
+              onChangeText={setRecipientName}
+            />
+          </View>
 
-          <Text style={styles.headerTitle}>
-            {address ? 'Update Address' : 'Add Address'}
-          </Text>
+          {/* Phone Number */}
+          <View style={styles.formGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+              Phone Number *
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                  borderRadius: radius.xl,
+                },
+              ]}
+              placeholder="e.g. 9876543210"
+              placeholderTextColor={colors.textMuted}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+          </View>
 
-          <Text style={styles.headerSubtitle}>
-            Manage your delivery location
-          </Text>
+          {/* Address Line 1 */}
+          <View style={styles.formGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+              Address Line 1 (Flat, House no., Building) *
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                  borderRadius: radius.xl,
+                },
+              ]}
+              placeholder="e.g. Flat 402, Green Valley Apts"
+              placeholderTextColor={colors.textMuted}
+              value={line1}
+              onChangeText={setLine1}
+            />
+          </View>
 
-        </LinearGradient>
+          {/* Address Line 2 */}
+          <View style={styles.formGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+              Address Line 2 (Street, Area, Landmark)
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                  borderRadius: radius.xl,
+                },
+              ]}
+              placeholder="e.g. Near City Hospital, MG Road"
+              placeholderTextColor={colors.textMuted}
+              value={line2}
+              onChangeText={setLine2}
+            />
+          </View>
 
-        <Animated.View
-          style={{
-            flex: 1,
-            opacity: fade,
-            transform: [
-              {
-                translateY: slide,
-              },
-            ],
-          }}
-        >
-
-          <ScrollView
-            contentContainerStyle={styles.container}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-
-            <View style={styles.formCard}>
-
-              <View style={styles.titleRow}>
-                <MaterialCommunityIcons
-                  name="map-marker-radius"
-                  size={28}
-                  color="#2563EB"
-                />
-
-                <Text style={styles.formTitle}>
-                  Delivery Information
-                </Text>
-              </View>
-
-              <Text style={styles.formSubtitle}>
-                Fill the details below to save your delivery address.
+          {/* City & State Row */}
+          <View style={styles.row}>
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+                City *
               </Text>
-
-              <InputField
-                icon="home-outline"
-                placeholder="Label (Home / Office) *"
-                value={label}
-                onChangeText={setLabel}
-              />
-
-              <InputField
-                icon="account-outline"
-                placeholder="Recipient Name *"
-                value={recipientName}
-                onChangeText={setRecipientName}
-              />
-
-              <InputField
-                icon="phone-outline"
-                placeholder="Mobile Number *"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-
-              <InputField
-                icon="home-city-outline"
-                placeholder="House / Flat / Building *"
-                value={line1}
-                onChangeText={setLine1}
-              />
-
-              <InputField
-                icon="road-variant"
-                placeholder="Street / Area / Village"
-                value={line2}
-                onChangeText={setLine2}
-              />
-
-              <InputField
-                icon="city"
-                placeholder="City *"
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    borderRadius: radius.xl,
+                  },
+                ]}
+                placeholder="e.g. Bengaluru"
+                placeholderTextColor={colors.textMuted}
                 value={city}
                 onChangeText={setCity}
               />
+            </View>
 
-              <InputField
-                icon="map-outline"
-                placeholder="State"
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+                State
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    borderRadius: radius.xl,
+                  },
+                ]}
+                placeholder="e.g. Karnataka"
+                placeholderTextColor={colors.textMuted}
                 value={state}
                 onChangeText={setState}
               />
+            </View>
+          </View>
 
-              <InputField
-                icon="mailbox-outline"
-                placeholder="Pincode *"
+          {/* Postal Code & Country Row */}
+          <View style={styles.row}>
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+                PIN Code *
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    borderRadius: radius.xl,
+                  },
+                ]}
+                placeholder="e.g. 560001"
+                placeholderTextColor={colors.textMuted}
                 value={postalCode}
                 onChangeText={setPostalCode}
-                keyboardType="number-pad"
+                keyboardType="numeric"
               />
+            </View>
 
-              <InputField
-                icon="earth"
-                placeholder="Country"
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, fontWeight: typography.weights.bold }]}>
+                Country
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    borderRadius: radius.xl,
+                  },
+                ]}
+                placeholder="India"
+                placeholderTextColor={colors.textMuted}
                 value={country}
                 onChangeText={setCountry}
               />
-
-              {/* Default address toggle */}
-
-              <TouchableOpacity
-                style={styles.defaultRow}
-                onPress={() => setIsDefault(!isDefault)}
-                activeOpacity={0.8}
-              >
-
-                <MaterialCommunityIcons
-                  name={
-                    isDefault
-                      ? 'checkbox-marked-circle'
-                      : 'checkbox-blank-circle-outline'
-                  }
-                  size={24}
-                  color={isDefault ? '#16A34A' : '#94A3B8'}
-                />
-
-                <Text style={styles.defaultText}>
-                  Set as default address
-                </Text>
-
-              </TouchableOpacity>
-
-              {/* Save Button */}
-
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.saveButton}
-                onPress={handleSave}
-                disabled={btnLoading === 'save'}
-              >
-                {btnLoading === 'save' ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons
-                      name={address ? 'content-save-edit' : 'content-save'}
-                      size={22}
-                      color="#fff"
-                    />
-
-                    <Text style={styles.saveText}>
-                      {address ? 'Update Address' : 'Save Address'}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {/* Cancel Button */}
-
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.cancelButton}
-                onPress={handleCancel}
-              >
-                <MaterialCommunityIcons
-                  name="close-circle-outline"
-                  size={22}
-                  color="#64748B"
-                />
-
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-
             </View>
+          </View>
 
-            <View style={{ height: 40 }} />
+          {/* Default Switch */}
+          <View
+            style={[
+              styles.switchRow,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+              },
+            ]}
+          >
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={[styles.switchTitle, { color: colors.text, fontWeight: typography.weights.semibold }]}>
+                Set as Default Address
+              </Text>
+              <Text style={[styles.switchSub, { color: colors.textMuted }]}>
+                Automatically selected for future checkouts
+              </Text>
+            </View>
+            <Switch
+              value={isDefault}
+              onValueChange={setIsDefault}
+              trackColor={{ false: '#CBD5E1', true: colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
 
-          </ScrollView>
-
-        </Animated.View>
-
+          {/* Submit Button */}
+          <AnimatedPressable
+            onPress={handleSave}
+            disabled={saving}
+            scaleTo={0.96}
+            haptic="heavy"
+            style={[
+              styles.saveBtn,
+              {
+                backgroundColor: colors.primary,
+                borderRadius: radius.xl,
+                ...shadows.glowPrimary,
+              },
+            ]}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveBtnText}>
+                {isEditing ? 'Update Address' : 'Save Address'}
+              </Text>
+            )}
+          </AnimatedPressable>
+        </ScrollView>
       </KeyboardAvoidingView>
-
-    </SafeAreaView>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F4F7FC',
-  },
-
   container: {
-    paddingBottom: 40,
-  },
-
-  /* ---------------- Header ---------------- */
-
-  header: {
-    paddingTop: 20,
-    paddingBottom: 95,
-    alignItems: 'center',
-    borderBottomLeftRadius: 35,
-    borderBottomRightRadius: 35,
-    elevation: 10,
-  },
-
-  logo: {
-    width: 90,
-    height: 90,
-    borderRadius: 22,
-    backgroundColor: '#fff',
-    marginBottom: 16,
-  },
-
-  headerTitle: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: '700',
-  },
-
-  headerSubtitle: {
-    color: '#DBEAFE',
-    fontSize: 15,
-    marginTop: 8,
-  },
-
-  /* ---------------- Form Card ---------------- */
-
-  formCard: {
-    backgroundColor: '#FFFFFF',
-
-    marginHorizontal: 20,
-    marginTop: -55,
-
-    borderRadius: 28,
-
-    padding: 22,
-
-    elevation: 12,
-
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-  },
-
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-
-  formTitle: {
-    marginLeft: 10,
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  formSubtitle: {
-    color: '#64748B',
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 22,
-  },
-
-  /* ---------------- Inputs ---------------- */
-
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-
-    backgroundColor: '#F8FAFC',
-
-    borderRadius: 18,
-
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-
-    marginBottom: 16,
-
-    paddingHorizontal: 15,
-
-    minHeight: 62,
-  },
-
-  iconContainer: {
-    width: 42,
-    height: 42,
-
-    borderRadius: 12,
-
-    backgroundColor: '#EEF4FF',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
-    marginRight: 12,
-  },
-
-  input: {
     flex: 1,
-
-    color: '#111827',
-
-    fontSize: 16,
-
-    paddingVertical: 15,
   },
-
-  /* ---------------- Default toggle ---------------- */
-
-  defaultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
+  scrollContent: {
+    padding: 16,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
     marginBottom: 6,
+    marginLeft: 2,
   },
-
-  defaultText: {
-    marginLeft: 10,
+  labelPillRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 2,
+  },
+  labelPill: {
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderWidth: 1,
+  },
+  labelPillText: {
+    fontSize: 13,
+  },
+  textInput: {
+    height: 50,
+    paddingHorizontal: 16,
+    borderWidth: 1,
     fontSize: 15,
-    fontWeight: '600',
-    color: '#334155',
   },
-
-  /* ---------------- Save Button ---------------- */
-
-  saveButton: {
-    height: 58,
-
-    backgroundColor: '#2563EB',
-
-    borderRadius: 18,
-
-    marginTop: 15,
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
+  row: {
     flexDirection: 'row',
-
-    elevation: 8,
-
-    shadowColor: '#2563EB',
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    gap: 12,
   },
-
-  saveText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    marginLeft: 10,
-  },
-
-  /* ---------------- Cancel ---------------- */
-
-  cancelButton: {
-    height: 58,
-
-    borderRadius: 18,
-
-    marginTop: 16,
-
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
+  switchRow: {
     flexDirection: 'row',
-
-    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 1,
+    marginTop: 4,
+    marginBottom: 24,
   },
-
-  cancelText: {
-    marginLeft: 8,
-
-    color: '#64748B',
-
-    fontWeight: '700',
+  switchTitle: {
+    fontSize: 14,
+  },
+  switchSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  saveBtn: {
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
+    color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '800',
   },
-
 });
-
-export default AddEditAddress;

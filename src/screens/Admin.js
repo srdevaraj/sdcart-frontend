@@ -1,23 +1,16 @@
 // src/screens/Admin.js
-//
-// Admin dashboard. All data comes from the /api/v1/admin/* endpoints; the
-// backend enforces the ADMIN role on every request (defense in depth: this
-// screen also hides itself from non-admins).
-
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
   RefreshControl,
   StatusBar,
-  FlatList,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +26,10 @@ import {
 } from '../services/adminService';
 import { getErrorMessage } from '../services/apiClient';
 import { formatPrice, formatDateTime } from '../services/format';
+import { useTheme } from '../theme';
+import { AnimatedPressable } from '../components/common/AnimatedPressable';
+import { ScreenHeader } from '../components/common/ScreenHeader';
+import { useToast } from '../context/ToastContext';
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: 'speedometer-outline' },
@@ -45,39 +42,38 @@ const ORDER_STATUSES = ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELL
 
 export default function Admin() {
   const { isAdmin } = useAuth();
+  const { colors, typography, radius, shadows, isDark } = useTheme();
+  const { showSuccess, showError } = useToast();
 
   const [tab, setTab] = useState('overview');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Data
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [payments, setPayments] = useState([]);
-
-  // Busy flags
   const [busy, setBusy] = useState(null);
 
   const fetchAll = useCallback(async () => {
     try {
       const [p, o, u, pay] = await Promise.all([
-        adminListProducts({ size: 20 }),
-        adminListOrders({ size: 20 }),
-        adminListUsers({ size: 20 }),
-        adminListPayments({ size: 20 }),
+        adminListProducts({ size: 25 }).catch(() => ({ content: [] })),
+        adminListOrders({ size: 25 }).catch(() => ({ content: [] })),
+        adminListUsers({ size: 25 }).catch(() => ({ content: [] })),
+        adminListPayments({ size: 25 }).catch(() => ({ content: [] })),
       ]);
       setProducts(p?.content || []);
       setOrders(o?.content || []);
       setUsers(u?.content || []);
       setPayments(pay?.content || []);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err));
+      showError(getErrorMessage(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     fetchAll();
@@ -85,11 +81,13 @@ export default function Admin() {
 
   if (!isAdmin) {
     return (
-      <View style={styles.center}>
-        <StatusBar barStyle="dark-content" />
-        <Ionicons name="shield-outline" size={80} color="#CBD5E1" />
-        <Text style={styles.deniedTitle}>Access Denied</Text>
-        <Text style={styles.deniedText}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <Ionicons name="shield-outline" size={80} color={colors.textMuted} />
+        <Text style={[styles.deniedTitle, { color: colors.text, fontWeight: typography.weights.extrabold }]}>
+          Access Denied
+        </Text>
+        <Text style={[styles.deniedText, { color: colors.textSecondary }]}>
           You do not have permission to view the admin dashboard.
         </Text>
       </View>
@@ -101,8 +99,6 @@ export default function Admin() {
     await fetchAll();
   };
 
-  // ---------------- Product actions ----------------
-
   const toggleProductStatus = async (product) => {
     const next = product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     try {
@@ -111,8 +107,9 @@ export default function Admin() {
       setProducts((prev) =>
         prev.map((p) => (p.publicId === product.publicId ? updated : p))
       );
+      showSuccess(`Product ${next === 'ACTIVE' ? 'activated' : 'deactivated'}`);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err));
+      showError(getErrorMessage(err));
     } finally {
       setBusy(null);
     }
@@ -121,7 +118,7 @@ export default function Admin() {
   const deleteProduct = (product) => {
     Alert.alert(
       'Deactivate Product',
-      `Deactivate "${product.name}"? It will disappear from the store catalog.`,
+      `Deactivate "${product.name}"? It will disappear from the catalog.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -134,8 +131,9 @@ export default function Admin() {
               setProducts((prev) =>
                 prev.filter((p) => p.publicId !== product.publicId)
               );
+              showSuccess('Product removed from catalog');
             } catch (err) {
-              Alert.alert('Error', getErrorMessage(err));
+              showError(getErrorMessage(err));
             } finally {
               setBusy(null);
             }
@@ -145,8 +143,6 @@ export default function Admin() {
     );
   };
 
-  // ---------------- Order actions ----------------
-
   const advanceOrder = async (order, status) => {
     try {
       setBusy(`o-${order.publicId}`);
@@ -154,14 +150,13 @@ export default function Admin() {
       setOrders((prev) =>
         prev.map((o) => (o.publicId === order.publicId ? updated : o))
       );
+      showSuccess(`Order status updated to ${status}`);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err));
+      showError(getErrorMessage(err));
     } finally {
       setBusy(null);
     }
   };
-
-  // ---------------- User actions ----------------
 
   const toggleUserActive = async (user) => {
     try {
@@ -170,8 +165,9 @@ export default function Admin() {
       setUsers((prev) =>
         prev.map((u) => (u.publicId === user.publicId ? updated : u))
       );
+      showSuccess(`User ${!user.active ? 'enabled' : 'disabled'}`);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err));
+      showError(getErrorMessage(err));
     } finally {
       setBusy(null);
     }
@@ -179,58 +175,76 @@ export default function Admin() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+          Loading admin dashboard...
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1E3A8A" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      {/* Header */}
-      <LinearGradient
-        colors={['#1E3A8A', '#2563EB']}
-        style={styles.header}
-      >
-        <Text style={styles.headerTitle}>Admin Dashboard</Text>
-        <Text style={styles.headerSubtitle}>
-          Manage products, orders and users
-        </Text>
-      </LinearGradient>
+      <ScreenHeader
+        title="Admin Control Center"
+        subtitle="System management & analytics"
+        showBack
+        showCart={false}
+      />
 
       {/* Tabs */}
-      <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tab, tab === t.key && styles.tabActive]}
-            onPress={() => setTab(t.key)}
-            activeOpacity={0.85}
-          >
-            <Ionicons
-              name={t.icon}
-              size={16}
-              color={tab === t.key ? '#FFFFFF' : '#64748B'}
-            />
-            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.tabRow}>
+        {TABS.map((t) => {
+          const isActive = tab === t.key;
+          return (
+            <AnimatedPressable
+              key={t.key}
+              onPress={() => setTab(t.key)}
+              scaleTo={0.92}
+              haptic="selection"
+              style={[
+                styles.tabItem,
+                {
+                  backgroundColor: isActive ? colors.primary : colors.surface,
+                  borderColor: isActive ? colors.primary : colors.border,
+                  borderRadius: radius.lg,
+                },
+              ]}
+            >
+              <Ionicons
+                name={t.icon}
+                size={16}
+                color={isActive ? '#FFFFFF' : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  {
+                    color: isActive ? '#FFFFFF' : colors.text,
+                    fontWeight: isActive ? typography.weights.bold : typography.weights.medium,
+                  },
+                ]}
+              >
+                {t.label}
+              </Text>
+            </AnimatedPressable>
+          );
+        })}
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#2563EB"
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
       >
@@ -241,8 +255,12 @@ export default function Admin() {
               icon="cube-outline"
               label="Products"
               value={products.length}
-              color="#2563EB"
+              color={colors.primary}
               onPress={() => setTab('products')}
+              colors={colors}
+              typography={typography}
+              radius={radius}
+              shadows={shadows}
             />
             <StatCard
               icon="receipt-outline"
@@ -250,446 +268,403 @@ export default function Admin() {
               value={orders.length}
               color="#7C3AED"
               onPress={() => setTab('orders')}
+              colors={colors}
+              typography={typography}
+              radius={radius}
+              shadows={shadows}
             />
             <StatCard
               icon="people-outline"
               label="Users"
               value={users.length}
-              color="#16A34A"
+              color={colors.success}
               onPress={() => setTab('users')}
+              colors={colors}
+              typography={typography}
+              radius={radius}
+              shadows={shadows}
             />
             <StatCard
               icon="card-outline"
               label="Payments"
               value={payments.length}
-              color="#EA580C"
+              color={colors.accent}
+              colors={colors}
+              typography={typography}
+              radius={radius}
+              shadows={shadows}
             />
           </View>
         )}
 
         {/* ================= PRODUCTS ================= */}
         {tab === 'products' && (
-          <>
-            <Text style={styles.sectionLabel}>Products ({products.length})</Text>
-            {products.length === 0 ? (
-              <EmptyState text="No products found" />
-            ) : (
-              products.map((product) => (
-                <View key={product.publicId} style={styles.rowCard}>
-                  <View style={styles.rowInfo}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {product.name}
-                    </Text>
-                    <Text style={styles.rowSubtitle}>
-                      {formatPrice(product.price)} · Stock {product.stockQuantity}
-                    </Text>
-                  </View>
+          <View>
+            <Text style={[styles.sectionHeading, { color: colors.text, fontWeight: typography.weights.bold }]}>
+              All Products ({products.length})
+            </Text>
 
-                  <View
+            {products.map((product) => (
+              <View
+                key={product.publicId}
+                style={[
+                  styles.adminCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderRadius: radius.xl,
+                    ...shadows.xs,
+                  },
+                ]}
+              >
+                <View style={styles.cardInfo}>
+                  <Text style={[styles.itemTitle, { color: colors.text, fontWeight: typography.weights.bold }]} numberOfLines={1}>
+                    {product.name}
+                  </Text>
+                  <Text style={[styles.itemSubtitle, { color: colors.textSecondary }]}>
+                    {formatPrice(product.price)} · Stock: {product.stockQuantity ?? 0}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.statusPill,
+                    {
+                      backgroundColor: product.status === 'ACTIVE' ? colors.successMuted : colors.dangerMuted,
+                      borderRadius: radius.sm,
+                    },
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.statusPill,
+                      styles.statusPillText,
                       {
-                        backgroundColor:
-                          product.status === 'ACTIVE' ? '#DCFCE7' : '#FEF2F2',
+                        color: product.status === 'ACTIVE' ? colors.success : colors.danger,
+                        fontWeight: typography.weights.bold,
                       },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        {
-                          color:
-                            product.status === 'ACTIVE' ? '#15803D' : '#B91C1C',
-                        },
-                      ]}
-                    >
-                      {product.status}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.smallButton}
-                    disabled={busy === `p-${product.publicId}`}
-                    onPress={() => toggleProductStatus(product)}
-                  >
-                    {busy === `p-${product.publicId}` ? (
-                      <ActivityIndicator size="small" color="#2563EB" />
-                    ) : (
-                      <Ionicons
-                        name={product.status === 'ACTIVE' ? 'eye-off-outline' : 'eye-outline'}
-                        size={18}
-                        color="#2563EB"
-                      />
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.smallButton}
-                    disabled={busy === `d-${product.publicId}`}
-                    onPress={() => deleteProduct(product)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                  </TouchableOpacity>
+                    {product.status}
+                  </Text>
                 </View>
-              ))
-            )}
-          </>
+
+                <AnimatedPressable
+                  onPress={() => toggleProductStatus(product)}
+                  disabled={busy === `p-${product.publicId}`}
+                  scaleTo={0.9}
+                  haptic="medium"
+                  style={[styles.iconBtn, { backgroundColor: colors.surfaceSubtle, borderRadius: radius.md }]}
+                >
+                  {busy === `p-${product.publicId}` ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons
+                      name={product.status === 'ACTIVE' ? 'eye-off-outline' : 'eye-outline'}
+                      size={18}
+                      color={colors.primary}
+                    />
+                  )}
+                </AnimatedPressable>
+
+                <AnimatedPressable
+                  onPress={() => deleteProduct(product)}
+                  disabled={busy === `d-${product.publicId}`}
+                  scaleTo={0.9}
+                  haptic="heavy"
+                  style={[styles.iconBtn, { backgroundColor: colors.dangerMuted, borderRadius: radius.md }]}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                </AnimatedPressable>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* ================= ORDERS ================= */}
         {tab === 'orders' && (
-          <>
-            <Text style={styles.sectionLabel}>Orders ({orders.length})</Text>
-            {orders.length === 0 ? (
-              <EmptyState text="No orders found" />
-            ) : (
-              orders.map((order) => (
-                <View key={order.publicId} style={styles.rowCard}>
-                  <View style={styles.rowInfo}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {order.orderNumber}
-                    </Text>
-                    <Text style={styles.rowSubtitle}>
-                      {formatPrice(order.totalAmount)} ·{' '}
-                      {formatDateTime(order.createdAt)}
-                    </Text>
-                  </View>
+          <View>
+            <Text style={[styles.sectionHeading, { color: colors.text, fontWeight: typography.weights.bold }]}>
+              All Orders ({orders.length})
+            </Text>
 
-                  <View
+            {orders.map((order) => (
+              <View
+                key={order.publicId}
+                style={[
+                  styles.adminCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderRadius: radius.xl,
+                    ...shadows.xs,
+                  },
+                ]}
+              >
+                <View style={styles.cardInfo}>
+                  <Text style={[styles.itemTitle, { color: colors.text, fontWeight: typography.weights.bold }]} numberOfLines={1}>
+                    #{order.orderNumber}
+                  </Text>
+                  <Text style={[styles.itemSubtitle, { color: colors.textSecondary }]}>
+                    {formatPrice(order.totalAmount)} · {formatDateTime(order.createdAt)}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.statusPill,
+                    {
+                      backgroundColor: order.status === 'CANCELLED' ? colors.dangerMuted : colors.primaryMuted,
+                      borderRadius: radius.sm,
+                    },
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.statusPill,
+                      styles.statusPillText,
                       {
-                        backgroundColor:
-                          order.status === 'CANCELLED' ? '#FEF2F2' : '#DBEAFE',
+                        color: order.status === 'CANCELLED' ? colors.danger : colors.primary,
+                        fontWeight: typography.weights.bold,
                       },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        {
-                          color:
-                            order.status === 'CANCELLED' ? '#B91C1C' : '#1D4ED8',
-                        },
-                      ]}
-                    >
-                      {order.status}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.smallButton}
-                    disabled={busy === `o-${order.publicId}`}
-                    onPress={() => {
-                      // Quick status advance through the allowed transitions.
-                      const orderStatuses = ORDER_STATUSES;
-                      const idx = orderStatuses.indexOf(order.status);
-                      const next = orderStatuses[idx + 1];
-                      if (!next || order.status === 'CANCELLED') {
-                        Alert.alert(
-                          'Status',
-                          'No further status transition is available for this order.'
-                        );
-                        return;
-                      }
-                      advanceOrder(order, next);
-                    }}
-                  >
-                    {busy === `o-${order.publicId}` ? (
-                      <ActivityIndicator size="small" color="#7C3AED" />
-                    ) : (
-                      <Ionicons name="arrow-forward-circle-outline" size={20} color="#7C3AED" />
-                    )}
-                  </TouchableOpacity>
+                    {order.status}
+                  </Text>
                 </View>
-              ))
-            )}
-          </>
+
+                <AnimatedPressable
+                  onPress={() => {
+                    const idx = ORDER_STATUSES.indexOf(order.status);
+                    const next = ORDER_STATUSES[idx + 1];
+                    if (!next || order.status === 'CANCELLED') {
+                      Alert.alert('Status', 'No further status advance available.');
+                      return;
+                    }
+                    advanceOrder(order, next);
+                  }}
+                  disabled={busy === `o-${order.publicId}`}
+                  scaleTo={0.9}
+                  haptic="selection"
+                  style={[styles.iconBtn, { backgroundColor: colors.surfaceSubtle, borderRadius: radius.md }]}
+                >
+                  {busy === `o-${order.publicId}` ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons name="arrow-forward-circle" size={20} color={colors.primary} />
+                  )}
+                </AnimatedPressable>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* ================= USERS ================= */}
         {tab === 'users' && (
-          <>
-            <Text style={styles.sectionLabel}>Users ({users.length})</Text>
-            {users.length === 0 ? (
-              <EmptyState text="No users found" />
-            ) : (
-              users.map((user) => (
-                <View key={user.publicId} style={styles.rowCard}>
-                  <View style={styles.rowInfo}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {user.firstName} {user.lastName}
-                    </Text>
-                    <Text style={styles.rowSubtitle}>
-                      {user.email} · {user.roles?.join(', ')}
-                    </Text>
-                  </View>
+          <View>
+            <Text style={[styles.sectionHeading, { color: colors.text, fontWeight: typography.weights.bold }]}>
+              Registered Users ({users.length})
+            </Text>
 
-                  <View
+            {users.map((user) => (
+              <View
+                key={user.publicId}
+                style={[
+                  styles.adminCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderRadius: radius.xl,
+                    ...shadows.xs,
+                  },
+                ]}
+              >
+                <View style={styles.cardInfo}>
+                  <Text style={[styles.itemTitle, { color: colors.text, fontWeight: typography.weights.bold }]} numberOfLines={1}>
+                    {user.firstName || ''} {user.lastName || ''}
+                  </Text>
+                  <Text style={[styles.itemSubtitle, { color: colors.textSecondary }]}>
+                    {user.email} · {user.roles?.join(', ') || 'USER'}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.statusPill,
+                    {
+                      backgroundColor: user.active ? colors.successMuted : colors.dangerMuted,
+                      borderRadius: radius.sm,
+                    },
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.statusPill,
-                      { backgroundColor: user.active ? '#DCFCE7' : '#FEF2F2' },
+                      styles.statusPillText,
+                      {
+                        color: user.active ? colors.success : colors.danger,
+                        fontWeight: typography.weights.bold,
+                      },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        { color: user.active ? '#15803D' : '#B91C1C' },
-                      ]}
-                    >
-                      {user.active ? 'ACTIVE' : 'DISABLED'}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.smallButton}
-                    disabled={busy === `u-${user.publicId}`}
-                    onPress={() => toggleUserActive(user)}
-                  >
-                    {busy === `u-${user.publicId}` ? (
-                      <ActivityIndicator size="small" color="#16A34A" />
-                    ) : (
-                      <Ionicons
-                        name={user.active ? 'ban-outline' : 'checkmark-circle-outline'}
-                        size={20}
-                        color="#16A34A"
-                      />
-                    )}
-                  </TouchableOpacity>
+                    {user.active ? 'ACTIVE' : 'DISABLED'}
+                  </Text>
                 </View>
-              ))
-            )}
-          </>
+
+                <AnimatedPressable
+                  onPress={() => toggleUserActive(user)}
+                  disabled={busy === `u-${user.publicId}`}
+                  scaleTo={0.9}
+                  haptic="medium"
+                  style={[styles.iconBtn, { backgroundColor: colors.surfaceSubtle, borderRadius: radius.md }]}
+                >
+                  {busy === `u-${user.publicId}` ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons
+                      name={user.active ? 'ban-outline' : 'checkmark-circle-outline'}
+                      size={18}
+                      color={user.active ? colors.danger : colors.success}
+                    />
+                  )}
+                </AnimatedPressable>
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
     </View>
   );
 }
 
-function StatCard({ icon, label, value, color, onPress }) {
+function StatCard({ icon, label, value, color, onPress, colors, typography, radius, shadows }) {
   return (
-    <TouchableOpacity
-      style={styles.statCard}
-      activeOpacity={0.85}
+    <AnimatedPressable
       onPress={onPress}
+      scaleTo={0.96}
+      haptic="selection"
+      style={[
+        styles.statCard,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          borderRadius: radius.xl,
+          ...shadows.xs,
+        },
+      ]}
     >
-      <View style={[styles.statIcon, { backgroundColor: `${color}18` }]}>
-        <Ionicons name={icon} size={24} color={color} />
+      <View style={[styles.statIconBox, { backgroundColor: `${color}18`, borderRadius: radius.md }]}>
+        <Ionicons name={icon} size={22} color={color} />
       </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function EmptyState({ text }) {
-  return (
-    <View style={styles.emptyBox}>
-      <Ionicons name="file-tray-outline" size={40} color="#CBD5E1" />
-      <Text style={styles.emptyText}>{text}</Text>
-    </View>
+      <Text style={[styles.statValue, { color: colors.text, fontWeight: typography.weights.black }]}>
+        {value}
+      </Text>
+      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+        {label}
+      </Text>
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
-
   center: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 30,
+    justifyContent: 'center',
+    padding: 24,
   },
-
   loadingText: {
-    marginTop: 14,
-    fontSize: 15,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-
-  deniedTitle: {
-    marginTop: 18,
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-
-  deniedText: {
-    marginTop: 8,
-    fontSize: 15,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 23,
-  },
-
-  header: {
-    paddingTop: 55,
-    paddingBottom: 22,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-  },
-
-  headerTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '900',
-  },
-
-  headerSubtitle: {
-    color: '#DBEAFE',
+    marginTop: 12,
     fontSize: 14,
-    marginTop: 5,
   },
-
-  tabs: {
+  deniedTitle: {
+    fontSize: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  deniedText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  tabRow: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
   },
-
-  tab: {
+  tabItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginHorizontal: 3,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 5,
+    gap: 4,
   },
-
-  tabActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-
   tabText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
   },
-
-  tabTextActive: {
-    color: '#FFFFFF',
+  scrollContent: {
+    padding: 16,
   },
-
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-  },
-
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 12,
   },
-
   statCard: {
     width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 12,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-
-  statIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  statIconBox: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 10,
+  },
+  statValue: {
+    fontSize: 24,
+  },
+  statLabel: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  sectionHeading: {
+    fontSize: 16,
     marginBottom: 12,
   },
-
-  statValue: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#101828',
-  },
-
-  statLabel: {
-    marginTop: 2,
-    fontSize: 13,
-    color: '#667085',
-    fontWeight: '600',
-  },
-
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#101828',
-    marginVertical: 12,
-  },
-
-  rowCard: {
+  adminCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    gap: 8,
   },
-
-  rowInfo: {
+  cardInfo: {
     flex: 1,
-    marginRight: 8,
   },
-
-  rowTitle: {
+  itemTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
   },
-
-  rowSubtitle: {
-    marginTop: 3,
+  itemSubtitle: {
     fontSize: 12,
-    color: '#667085',
+    marginTop: 2,
   },
-
   statusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    marginRight: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-
   statusPillText: {
     fontSize: 11,
-    fontWeight: '800',
   },
-
-  smallButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+  iconBtn: {
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
-  },
-
-  emptyBox: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-
-  emptyText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: '#94A3B8',
   },
 });
